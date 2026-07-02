@@ -751,8 +751,8 @@ app_code = get_file_from_github("app.py")
 print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
     sandbox.commands.run(
-        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph langsmith chromadb sentence-transformers numpy",
-        timeout=120
+        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph langsmith chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
+        timeout=180
     )
 
     sandbox.files.write("/home/user/app.py", app_code)
