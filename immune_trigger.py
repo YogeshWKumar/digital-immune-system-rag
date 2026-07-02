@@ -185,7 +185,7 @@ def chunk_by_class_and_function(source_code: str) -> list[dict]:
             # Extract the exact lines for this function
             start  = node.lineno - 1      # 0-indexed
             end    = node.end_lineno       # 0-indexed exclusive
-            source = "\n".join(lines[start:end])
+            source = "\\n".join(lines[start:end])
 
             # Build label — Class.method or just function
             if parent_class:
