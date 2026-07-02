@@ -4,31 +4,54 @@ from typing import Optional
 
 app = FastAPI()
 
-# ── Feature flag ──────────────────────────────────────────────────────────────
-# Developer toggles this to True when committing the new feature
-DISCOUNT_ENGINE_ENABLED = True
-
-# ── Data ──────────────────────────────────────────────────────────────────────
+# ── Data ───────────────────────────────────────────────────────────────────────
 products = {
-    1: {"name": "Book", "price": 10.0, "stock": 5},
-    2: {"name": "Pen",  "price": 2.0,  "stock": 10},
+    1: {"name": "Book",   "price": 10.0, "stock": 5},
+    2: {"name": "Pen",    "price": 2.0,  "stock": 10},
+    3: {"name": "Laptop", "price": 500.0,"stock": 3},
 }
 
+# ── Class 1 — handles SAVE10 discount ─────────────────────────────────────────
+class Save10Discount:
+    """Applies a 10% discount to the subtotal."""
+
+    def apply(self, subtotal: float) -> float:
+        """Returns subtotal after 10% discount."""
+        return round(subtotal * 0.9, 2)
+
+
+# ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
+class Save50Discount:
+    """Applies a 50% discount to the subtotal."""
+
+    def apply(self, subtotal: float) -> float:
+        """Returns subtotal after 50% discount."""
+        return round(subtotal * 0.5, 2)
+
+
+# ── Singletons ─────────────────────────────────────────────────────────────────
+save10 = Save10Discount()
+save50 = Save50Discount()
+
+# ── Business logic ─────────────────────────────────────────────────────────────
+def calculate_price(price: float, quantity: int,
+                    coupon: Optional[str]) -> float:
+    """Orchestrates discount classes to produce final price."""
+    subtotal = round(price * quantity, 2)
+    if coupon == "SAVE10":
+        return save10.apply(subtotal)
+    elif coupon == "SAVE50":
+        return save50.apply(subtotal)
+    return subtotal
+
+
+# ── Request model ──────────────────────────────────────────────────────────────
 class OrderRequest(BaseModel):
     product_id: int
-    quantity: int
-    coupon: Optional[str] = None
+    quantity:   int
+    coupon:     Optional[str] = None
 
-# ── Business logic ────────────────────────────────────────────────────────────
-def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float:
-    if DISCOUNT_ENGINE_ENABLED:
-        if coupon == "SAVE10":
-            return round(price * quantity * 0.9, 2)  # Changed calculation for SAVE10 to apply 10% discount
-        elif coupon == "SAVE50":
-            return round(price * quantity * 0.5, 2)  # Changed calculation for SAVE50 to apply 50% discount
-    return round(price * quantity, 2)
-
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+# ── Endpoints ──────────────────────────────────────────────────────────────────
 @app.post("/order")
 def place_order(req: OrderRequest):
     if req.product_id not in products:
@@ -36,11 +59,12 @@ def place_order(req: OrderRequest):
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon)
     return {
-        "product": product["name"],
+        "product":  product["name"],
         "quantity": req.quantity,
-        "total": total,
-        "status": "confirmed"
+        "total":    total,
+        "status":   "confirmed"
     }
+
 
 @app.get("/health")
 def health():

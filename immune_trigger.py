@@ -157,6 +157,116 @@ def reload_app():
     app = app_module.app
     client = TestClient(app, raise_server_exceptions=False)
 
+import ast
+
+def chunk_by_class_and_function(source_code: str) -> list[dict]:
+    """
+    Chunks source code purely by class and function boundaries using AST.
+    Every chunk carries both the class name and function name it belongs to.
+    """
+    lines = source_code.splitlines()
+    tree  = ast.parse(source_code)
+
+    # ── Pass 1: Map every line to its class owner ─────────────────────────────
+    class_ranges = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            for lineno in range(node.lineno, node.end_lineno + 1):
+                class_ranges[lineno] = node.name
+
+    # ── Pass 2: Extract one chunk per function/method ─────────────────────────
+    chunks = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+
+            # Is this function a method inside a class?
+            parent_class = class_ranges.get(node.lineno)
+
+            # Extract the exact lines for this function
+            start  = node.lineno - 1      # 0-indexed
+            end    = node.end_lineno       # 0-indexed exclusive
+            source = "\n".join(lines[start:end])
+
+            # Build label — Class.method or just function
+            if parent_class:
+                label = f"{parent_class}.{node.name}"
+            else:
+                label = node.name
+
+            chunks.append({
+                "label":      label,            # e.g. "Save10Discount.apply"
+                "class_name": parent_class,     # e.g. "Save10Discount" or None
+                "func_name":  node.name,        # e.g. "apply"
+                "func_sig":   lines[node.lineno - 1].strip(),
+                "start_line": node.lineno,
+                "end_line":   node.end_lineno,
+                "source":     source,
+            })
+
+    return chunks
+
+from sentence_transformers import CrossEncoder
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+import chromadb
+# Initialise ChromaDB inside the sandbox
+chroma_client = chromadb.Client()  # in-memory
+
+# Stage 1 — Index all chunks into ChromaDB:
+def index_chunks(source_code: str, collection) -> None:
+    chunks = chunk_by_class_and_function(source_code)
+
+    collection.add(
+        documents=[c["source"] for c in chunks],
+        metadatas=[{
+            "label":      c["label"],
+            "class_name": c["class_name"] or "",
+            "func_name":  c["func_name"],
+            "func_sig":   c["func_sig"],
+            "start_line": str(c["start_line"]),
+            "end_line":   str(c["end_line"]),
+        } for c in chunks],
+        ids=[c["label"] for c in chunks]
+    )
+
+# Stage 2 — Query ChromaDB instead of manual cosine similarity:
+def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
+    results = collection.query(
+        query_texts=[query],
+        n_results=k,
+        include=["documents", "metadatas", "distances"]
+    )
+
+    chunks = []
+    for doc, meta, dist in zip(
+        results["documents"][0],
+        results["metadatas"][0],
+        results["distances"][0]
+    ):
+        chunks.append({
+            "source":     doc,
+            "label":      meta["label"],
+            "class_name": meta["class_name"] or None,
+            "func_name":  meta["func_name"],
+            "func_sig":   meta["func_sig"],
+            "start_line": int(meta["start_line"]),
+            "end_line":   int(meta["end_line"]),
+            "score":      1 - dist  # chroma returns distance, convert to similarity
+        })
+    return chunks
+
+def replace_function(source: str, func_name: str, new_func: str) -> str:
+    """Replaces a single function in source with new_func."""
+    tree  = ast.parse(source)
+    lines = source.splitlines()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == func_name:
+            start = node.lineno - 1
+            end   = node.end_lineno
+            lines[start:end] = new_func.splitlines()
+            return "\\n".join(lines)
+    return source  # fallback if function not found
+
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
 @tool
@@ -223,52 +333,106 @@ def run_tests(test_code: str) -> dict:
         "stderr": result.stderr
     }
 
-
 @tool
 def patch_app(reason: str) -> str:
     """
-    Uses LLM to generate and apply a fix to app.py based on test failure.
+    Uses ChromaDB vector store + cross-encoder reranking to find
+    the right class and method, then LLM fixes it.
 
     Args:
-        reason: Description of the fix being applied to the app.
+        reason: Description of the fix being applied.
     """
     from smolagents.models import ChatMessage
 
     with open("/home/user/app.py", "r") as f:
-        code = f.read()
+        source = f.read()
 
     failure_log = os.environ.get("FAILURE_LOG", "")
 
+    # ── Step 1: Index source into ChromaDB ────────────────────────────────────
+    # Re-index on every run so stale chunks never persist
+    try:
+        chroma_client.delete_collection("app_chunks")
+    except Exception:
+        pass
+    collection = chroma_client.create_collection("app_chunks")
+    index_chunks(source, collection)
+
+    # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
+    query  = failure_log
+    top_k  = retrieve_top_k_chroma(query, collection, k=3)
+
+    # ── Step 3: Cross-encoder rerank ──────────────────────────────────────────
+    pairs  = [(query, c["source"]) for c in top_k]
+    scores = reranker.predict(pairs)
+    for c, s in zip(top_k, scores):
+        c["rerank_score"] = float(s)
+    reranked = sorted(top_k,
+                      key=lambda x: x["rerank_score"],
+                      reverse=True)
+    top_2 = reranked[:2]
+
+    # ── Step 4: Build focused prompt ──────────────────────────────────────────
+    sections = []
+    for c in top_2:
+        if c["class_name"]:
+            header = (
+                f"# Class:     {c['class_name']}\\n"
+                f"# Method:    {c['func_name']}\\n"
+                f"# Signature: {c['func_sig']}\\n"
+                f"# Location:  lines {c['start_line']}-{c['end_line']}\\n"
+            )
+        else:
+            header = (
+                f"# Function:  {c['func_name']}\\n"
+                f"# Signature: {c['func_sig']}\\n"
+                f"# Location:  lines {c['start_line']}-{c['end_line']}\\n"
+            )
+        sections.append(header + c["source"])
+
+    relevant_code = "\\n\\n".join(sections)
+
     prompt = (
-        f"This Python FastAPI file has a bug:\\n\\n{code}\\n\\n"
+        f"This Python FastAPI file has a bug:\\n\\n{relevant_code}\\n\\n"
         f"CI failure output:\\n{failure_log}\\n\\n"
         f"Reason: {reason}\\n\\n"
-        "Fix ALL bugs in the file — there may be more than one. "
+        "Trace the failing assertion back through the shown "
+        "class and method to find the exact line producing the wrong value.\\n"
+        "Fix ONLY the broken method. "
         "Preserve ALL comments, blank lines, and formatting exactly as in the original. "
         "Do NOT reformat, clean up, or remove any comments. "
         "For each changed line, add an inline comment explaining what was changed. "
-        "Return ONLY the complete fixed Python file with no explanation or markdown. "
-        "Just the raw Python code."
+        "Return ONLY the corrected method — not the full file."
     )
 
-    response = model([ChatMessage(role="user", content=prompt)])
-    fixed = response.content.strip()
+    # ── Step 5: LLM generates the fix ─────────────────────────────────────────
+    response   = model([ChatMessage(role="user", content=prompt)])
+    fixed_func = response.content.strip()
 
-    if fixed.startswith("```"):
-        fixed = "\\n".join(
-            line for line in fixed.split("\\n")
+    if fixed_func.startswith("```"):
+        fixed_func = "\\n".join(
+            line for line in fixed_func.split("\\n")
             if not line.startswith("```")
         ).strip()
 
+    # ── Step 6: Merge fixed method back into full app.py ──────────────────────
+    fixed_source = replace_function(
+        source,
+        top_2[0]["func_name"],
+        fixed_func
+    )
+
+    # ── Step 7: Validate syntax ────────────────────────────────────────────────
     try:
-        compile(fixed, "app.py", "exec")
+        compile(fixed_source, "app.py", "exec")
     except SyntaxError as e:
         return f"Patch aborted — invalid Python: {e}"
 
+    # ── Step 8: Write fixed files ──────────────────────────────────────────────
     with open("/home/user/app.py", "w") as f:
-        f.write(fixed)
+        f.write(fixed_source)
     with open("/home/user/fixed_app.py", "w") as f:
-        f.write(fixed)
+        f.write(fixed_source)
 
     reload_app()
     return f"Patched: {reason}"
@@ -587,7 +751,7 @@ app_code = get_file_from_github("app.py")
 print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
     sandbox.commands.run(
-        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph",
+        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph langsmith chromadb sentence-transformers numpy",
         timeout=120
     )
 
