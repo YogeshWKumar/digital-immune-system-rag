@@ -750,6 +750,13 @@ app_code = get_file_from_github("app.py")
 
 print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
+
+    debug = sandbox.commands.run(
+    "pip show langgraph langchain-core | grep -E 'Name|Version'",
+    timeout=30
+    )
+    print("Pre-installed versions:", debug.stdout)
+
     sandbox.commands.run(
         "pip install --upgrade langchain-core jsonpatch uuid-utils xxhash orjson fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph langsmith chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
         timeout=180
