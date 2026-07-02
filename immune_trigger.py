@@ -753,7 +753,9 @@ print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
 
     sandbox.commands.run(
-        "pip uninstall -y langgraph langchain-core langchain langsmith && "
+        sandbox.commands.run(
+        "pip install --target=/usr/local/lib/python3.13/site-packages "
+        "uuid-utils jsonpatch xxhash orjson requests-toolbelt && "
         "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain-core langchain_openai langsmith chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
         timeout=180
     )
