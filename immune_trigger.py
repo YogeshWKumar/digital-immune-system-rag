@@ -116,6 +116,12 @@ def update_immune_memory(memory: dict, file_sha: str, healed: bool, action: str)
 
 
 IMMUNE_CODE = '''
+import subprocess
+result = subprocess.run(
+    ["pip", "show", "langchain-core"],
+    capture_output=True, text=True
+)
+print(result.stdout)
 import os
 import sys
 import json
@@ -750,7 +756,7 @@ app_code = get_file_from_github("app.py")
 
 print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
-    
+
     sandbox.commands.run(
         "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain-core langchain_openai langsmith chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
         timeout=180
