@@ -1,0 +1,128 @@
+{
+  "failure_count": 0,
+  "last_failure_sha": "1ee0b2da5eda896b01cc5bacea1fe07281343fcb",
+  "last_healed_sha": "ca5842928c4cad152a0ad074675c2baf38014d0d",
+  "last_healed_at": "2026-07-02T05:29:06.074716+00:00",
+  "history": [
+    {
+      "sha": "362cf19af9696207a1d9a59b87c667f2a7cc9789",
+      "action": "ROLLBACK",
+      "healed": true,
+      "timestamp": "2026-07-02T04:09:54.842980+00:00"
+    },
+    {
+      "sha": "18bde09db038e347a8dc95ebaf1cf7bfad814ad6",
+      "action": "ROLLBACK",
+      "healed": true,
+      "timestamp": "2026-07-02T04:13:53.945566+00:00"
+    },
+    {
+      "sha": "3b85ed0c828caef723b4c1dc0ca4817af2c059f7",
+      "action": "PATCH",
+      "healed": true,
+      "timestamp": "2026-07-02T04:17:20.604671+00:00"
+    },
+    {
+      "sha": "d57e8c71d3f7a0c3b36e0171d585ad3e4dc3a5d1",
+      "action": "PATCH",
+      "healed": true,
+      "timestamp": "2026-07-02T04:21:34.345189+00:00"
+    },
+    {
+      "sha": "5fbb21e74dc21c2c0f2742c2643ad9921875f541",
+      "action": "PATCH",
+      "healed": true,
+      "timestamp": "2026-07-02T04:25:06.555619+00:00"
+    },
+    {
+      "sha": "5bfe00afe3ad7f505902497a500f1a42d997d785",
+      "action": "PATCH",
+      "healed": true,
+      "timestamp": "2026-07-02T04:28:31.363906+00:00"
+    },
+    {
+      "sha": "16e2f5039cd0476439f11fffea2878faa6e0d5e8",
+      "action": "PATCH",
+      "healed": false,
+      "timestamp": "2026-07-02T04:31:54.627239+00:00"
+    },
+    {
+      "sha": "940680c8eed65c5fd5dbc7fb5b66f9ca7a860078",
+      "action": "ROLLBACK",
+      "healed": true,
+      "timestamp": "2026-07-02T04:33:09.798321+00:00"
+    },
+    {
+      "sha": "812c7a2d278ac222756009fa84fb8744a77052c5",
+      "action": "PATCH",
+      "healed": false,
+      "timestamp": "2026-07-02T04:36:56.975736+00:00"
+    },
+    {
+      "sha": "cb2aff3c4497b6bf4b32a7dded8a077b6eea186c",
+      "action": "ESCALATE",
+      "healed": false,
+      "timestamp": "2026-07-02T04:38:32.006118+00:00"
+    },
+    {
+      "sha": "0df9d2ccb34d579178050990f27bac0cfbe72950",
+      "action": "PATCH",
+      "healed": true,
+      "timestamp": "2026-07-02T04:42:46.375321+00:00"
+    },
+    {
+      "sha": "f0211ce765eaf891d59f90d9917bf45a6350ed06",
+      "action": "PATCH",
+      "healed": true,
+      "timestamp": "2026-07-02T04:47:37.337984+00:00"
+    },
+    {
+      "sha": "1596d5f5ec5838627c35b578c3613b0f2093bfd2",
+      "action": "PATCH",
+      "healed": false,
+      "timestamp": "2026-07-02T05:07:23.252875+00:00"
+    },
+    {
+      "sha": "86d306791d5780082a09da652c3da130bc7ea2e8",
+      "action": "ROLLBACK",
+      "healed": true,
+      "timestamp": "2026-07-02T05:08:53.098531+00:00"
+    },
+    {
+      "sha": "f0b20b1b2a13eceda3b6083473d11ebf633ca7ee",
+      "action": "PATCH",
+      "healed": false,
+      "timestamp": "2026-07-02T05:12:41.408947+00:00"
+    },
+    {
+      "sha": "df832411dbf7e8f21d60d46b73df29db75ceb674",
+      "action": "PATCH",
+      "healed": false,
+      "timestamp": "2026-07-02T05:14:05.506691+00:00"
+    },
+    {
+      "sha": "af40bb178289a900175f030809a1b2d30842596d",
+      "action": "PATCH",
+      "healed": false,
+      "timestamp": "2026-07-02T05:15:39.367376+00:00"
+    },
+    {
+      "sha": "df4dab30b733886023e049dece2e3c4b0947afad",
+      "action": "PATCH",
+      "healed": true,
+      "timestamp": "2026-07-02T05:22:11.424156+00:00"
+    },
+    {
+      "sha": "1ee0b2da5eda896b01cc5bacea1fe07281343fcb",
+      "action": "PATCH",
+      "healed": false,
+      "timestamp": "2026-07-02T05:27:39.230157+00:00"
+    },
+    {
+      "sha": "ca5842928c4cad152a0ad074675c2baf38014d0d",
+      "action": "PATCH",
+      "healed": true,
+      "timestamp": "2026-07-02T05:29:06.074735+00:00"
+    }
+  ]
+}

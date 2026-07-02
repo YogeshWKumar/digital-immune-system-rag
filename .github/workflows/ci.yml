@@ -1,0 +1,58 @@
+name: CI + Digital Immune System
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'immune_memory.json'
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install fastapi httpx pytest httpx2
+
+      - name: Run baseline tests
+        id: run_tests
+        run: |
+          pytest test_baseline.py -v --tb=short 2>&1 | tee test_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Show test output
+        if: always()
+        run: cat test_output.txt
+
+      - name: Trigger Digital Immune System
+        if: steps.run_tests.outputs.exit_code != '0'
+        env:
+          E2B_API_KEY:       ${{ secrets.E2B_API_KEY }}
+          OPENAI_API_KEY:    ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN:          ${{ secrets.GH_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO:              ${{ github.repository }}
+          COMMIT_SHA:        ${{ github.sha }}
+          BRANCH:            ${{ github.ref_name }}
+          LANGSMITH_TRACING:   ${{ secrets.LANGSMITH_TRACING }}
+          LANGSMITH_ENDPOINT:  ${{ secrets.LANGSMITH_ENDPOINT }}
+          LANGSMITH_API_KEY:   ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT:   ${{ secrets.LANGSMITH_PROJECT }}
+        run: |
+          pip install e2b-code-interpreter requests smolagents openai
+          python immune_trigger.py
+
+      - name: Fail build if tests failed
+        if: steps.run_tests.outputs.exit_code != '0'
+        run: exit 1
