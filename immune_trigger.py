@@ -751,7 +751,7 @@ app_code = get_file_from_github("app.py")
 print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
     sandbox.commands.run(
-        "pip install jsonpatch uuid-utils fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain-core langchain_openai langgraph langsmith chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
+        "pip install jsonpatch uuid-utils xxhash orjson fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain-core langchain_openai langgraph langsmith chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
         timeout=180
     )
 
