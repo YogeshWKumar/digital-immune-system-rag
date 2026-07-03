@@ -62,6 +62,8 @@ def place_order(req: OrderRequest):
     # Assuming the coupon "save50" should apply a 50% discount on the total price
     if req.coupon == "save50":  # Added check for the specific coupon
         total *= 0.5  # Apply the 50% discount to the total
+    elif req.coupon == "save10":  # Added check for another coupon type
+        total *= 0.9  # Apply a 10% discount to the total (if applicable)
     
     return {
         "product":  product["name"],
