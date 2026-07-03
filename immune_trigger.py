@@ -752,6 +752,13 @@ app_code = get_file_from_github("app.py")
 print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
 
+    debug = sandbox.commands.run(
+    "pip list 2>/dev/null | head -60",
+    timeout=30
+    )
+    
+    print(debug.stdout)
+
     sandbox.commands.run(
         "pip install langchain-core --upgrade --force-reinstall && "
         "pip install starlette fastapi pytest httpx httpx2 smolagents openai python-multipart langchain_openai chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
