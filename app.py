@@ -53,15 +53,17 @@ class OrderRequest(BaseModel):
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 @app.post("/order")
-def calculate_price(price: float, quantity: int,
-                    coupon: Optional[str]) -> float:
-    """Orchestrates discount classes to produce final price."""
-    subtotal = round(price * quantity, 2)
-    if coupon == "SAVE10":
-        return save10.apply(subtotal)
-    elif coupon == "SAVE50":
-        return save50.apply(subtotal * 0.5)  # Changed to apply a 50% discount
-    return subtotal
+def place_order(req: OrderRequest):
+    if req.product_id not in products:
+        raise HTTPException(status_code=404, detail="Product not found")
+    product = products[req.product_id]
+    total = calculate_price(product["price"], req.quantity, req.coupon)
+    return {
+        "product":  product["name"],
+        "quantity": req.quantity,
+        "total":    total,
+        "status":   "confirmed"
+    }
 
 
 @app.get("/health")

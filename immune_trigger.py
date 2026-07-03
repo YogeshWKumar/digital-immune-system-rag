@@ -253,17 +253,38 @@ def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
         })
     return chunks
 
-def replace_function(source: str, func_name: str, new_func: str) -> str:
-    """Replaces a single function in source with new_func."""
+def replace_function(source: str,
+                     func_name: str,
+                     new_func: str,
+                     class_name: str = None) -> str:
+    """
+    Replaces a function or method in source.
+    If class_name is provided, only replaces the method inside that class.
+    """
     tree  = ast.parse(source)
     lines = source.splitlines()
+
+    # Build class ranges first
+    class_ranges = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            for lineno in range(node.lineno, node.end_lineno + 1):
+                class_ranges[lineno] = node.name
+
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == func_name:
+            parent_class = class_ranges.get(node.lineno)
+
+            # If class_name specified, only replace method in that class
+            if class_name and parent_class != class_name:
+                continue
+
             start = node.lineno - 1
             end   = node.end_lineno
             lines[start:end] = new_func.splitlines()
             return "\\n".join(lines)
-    return source  # fallback if function not found
+
+    return source  # fallback
 
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
@@ -406,7 +427,8 @@ def patch_app(reason: str) -> str:
     fixed_source = replace_function(
         source,
         top_2[0]["func_name"],
-        fixed_func
+        fixed_func,
+        class_name=top_2[0]["class_name"]
     )
 
     # ── Step 6: Validate syntax ────────────────────────────────────────────────
