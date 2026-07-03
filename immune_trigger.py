@@ -752,16 +752,10 @@ app_code = get_file_from_github("app.py")
 print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
 
-    debug = sandbox.commands.run(
-    "pip list 2>/dev/null | head -60",
-    timeout=30
-    )
-    
-    print(debug.stdout)
-
     sandbox.commands.run(
-        "pip install langchain-core --upgrade --force-reinstall && "
-        "pip install starlette fastapi pytest httpx httpx2 smolagents openai python-multipart langchain_openai chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
+        "pip install --user "
+        "filelock starlette langchain-core langchain_openai langgraph langsmith "
+        "fastapi pytest httpx httpx2 smolagents openai python-multipart chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
         timeout=180
     )
 
@@ -776,6 +770,7 @@ with Sandbox.create() as sandbox:
         "cd /home/user && python immune_system.py",
         timeout=600,
         envs={
+            "PYTHONPATH": "/home/user/.local/lib/python3.13/site-packages",
             "OPENAI_API_KEY": OPENAI_KEY,
             "GH_TOKEN":       GH_TOKEN,
             "REPO":           REPO,
