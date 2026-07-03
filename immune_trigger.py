@@ -754,7 +754,8 @@ with Sandbox.create() as sandbox:
 
     sandbox.commands.run(
         "pip install --user "
-        "uuid-utils filelock starlette langchain-core langchain_openai langgraph langsmith "
+        "uuid-utils jsonpatch xxhash orjson requests-toolbelt "
+        "sniffio anyio filelock starlette langchain-core langgraph langsmith langchain_openai "
         "fastapi pytest httpx httpx2 smolagents openai python-multipart chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
         timeout=180
     )
