@@ -206,9 +206,6 @@ def chunk_by_class_and_function(source_code: str) -> list[dict]:
 
     return chunks
 
-from sentence_transformers import CrossEncoder
-reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
-
 import chromadb
 # Initialise ChromaDB inside the sandbox
 chroma_client = chromadb.Client()  # in-memory
@@ -337,8 +334,7 @@ def run_tests(test_code: str) -> dict:
 @tool
 def patch_app(reason: str) -> str:
     """
-    Uses ChromaDB vector store + cross-encoder reranking to find
-    the right class and method, then LLM fixes it.
+    Uses ChromaDB vector store to find the right class and method, then LLM fixes it.
 
     Args:
         reason: Description of the fix being applied.
@@ -361,19 +357,9 @@ def patch_app(reason: str) -> str:
 
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
     query  = failure_log
-    top_k  = retrieve_top_k_chroma(query, collection, k=3)
+    top_2  = retrieve_top_k_chroma(query, collection, k=2)
 
-    # ── Step 3: Cross-encoder rerank ──────────────────────────────────────────
-    pairs  = [(query, c["source"]) for c in top_k]
-    scores = reranker.predict(pairs)
-    for c, s in zip(top_k, scores):
-        c["rerank_score"] = float(s)
-    reranked = sorted(top_k,
-                      key=lambda x: x["rerank_score"],
-                      reverse=True)
-    top_2 = reranked[:2]
-
-    # ── Step 4: Build focused prompt ──────────────────────────────────────────
+    # ── Step 3: Build focused prompt ──────────────────────────────────────────
     sections = []
     for c in top_2:
         if c["class_name"]:
@@ -394,7 +380,7 @@ def patch_app(reason: str) -> str:
     relevant_code = "\\n\\n".join(sections)
 
     prompt = (
-        f"This Python FastAPI file has a bug:\\n\\n{relevant_code}\\n\\n"
+        f"The following class/method is most likely to contain the bug:\\n{relevant_code}\\n\\n"
         f"CI failure output:\\n{failure_log}\\n\\n"
         f"Reason: {reason}\\n\\n"
         "Trace the failing assertion back through the shown "
@@ -406,7 +392,7 @@ def patch_app(reason: str) -> str:
         "Return ONLY the corrected method — not the full file."
     )
 
-    # ── Step 5: LLM generates the fix ─────────────────────────────────────────
+    # ── Step 4: LLM generates the fix ─────────────────────────────────────────
     response   = model([ChatMessage(role="user", content=prompt)])
     fixed_func = response.content.strip()
 
@@ -416,20 +402,20 @@ def patch_app(reason: str) -> str:
             if not line.startswith("```")
         ).strip()
 
-    # ── Step 6: Merge fixed method back into full app.py ──────────────────────
+    # ── Step 5: Merge fixed method back into full app.py ──────────────────────
     fixed_source = replace_function(
         source,
         top_2[0]["func_name"],
         fixed_func
     )
 
-    # ── Step 7: Validate syntax ────────────────────────────────────────────────
+    # ── Step 6: Validate syntax ────────────────────────────────────────────────
     try:
         compile(fixed_source, "app.py", "exec")
     except SyntaxError as e:
         return f"Patch aborted — invalid Python: {e}"
 
-    # ── Step 8: Write fixed files ──────────────────────────────────────────────
+    # ── Step 7: Write fixed files ──────────────────────────────────────────────
     with open("/home/user/app.py", "w") as f:
         f.write(fixed_source)
     with open("/home/user/fixed_app.py", "w") as f:
@@ -753,7 +739,7 @@ print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
 
     sandbox.commands.run(
-        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph chromadb sentence-transformers numpy",
+        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph chromadb numpy",
         timeout=180
     )
 
@@ -768,7 +754,6 @@ with Sandbox.create() as sandbox:
         "cd /home/user && python immune_system.py",
         timeout=600,
         envs={
-            "PYTHONPATH": "/home/user/.local/lib/python3.13/site-packages",
             "OPENAI_API_KEY": OPENAI_KEY,
             "GH_TOKEN":       GH_TOKEN,
             "REPO":           REPO,
