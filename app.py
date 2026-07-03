@@ -58,6 +58,11 @@ def place_order(req: OrderRequest):
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon)
+    
+    # Assuming the coupon "save50" should apply a 50% discount on the total price
+    if req.coupon == "save50":  # Added check for the specific coupon
+        total *= 0.5  # Apply the 50% discount to the total
+    
     return {
         "product":  product["name"],
         "quantity": req.quantity,
