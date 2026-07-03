@@ -754,8 +754,8 @@ with Sandbox.create() as sandbox:
 
     sandbox.commands.run(
         "pip install --ignore-installed --force-reinstall "
-        "langchain-core langgraph langsmith smolagents && "
-        "pip install fastapi pytest httpx httpx2 openai python-multipart langchain_openai chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
+        "langchain-core langgraph langsmith && "
+        "pip install starlette fastapi pytest httpx httpx2 smolagents openai python-multipart langchain_openai chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
         timeout=180
     )
 
