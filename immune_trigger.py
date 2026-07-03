@@ -253,6 +253,27 @@ def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
         })
     return chunks
 
+from chromadb import EmbeddingFunction, Documents, Embeddings
+from openai import OpenAI as OpenAIClient
+
+openai_client = OpenAIClient(
+    base_url="https://openai.vocareum.com/v1",
+    api_key=os.environ["OPENAI_API_KEY"]
+)
+
+class OpenAIEmbeddingFunction(EmbeddingFunction):
+    def __call__(self, input: Documents) -> Embeddings:
+        embeddings = []
+        for text in input:
+            response = openai_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=text
+            )
+            embeddings.append(response.data[0].embedding)
+        return embeddings
+
+    embedding_fn = OpenAIEmbeddingFunction()
+
 def replace_function(source: str,
                      func_name: str,
                      new_func: str,
@@ -373,7 +394,11 @@ def patch_app(reason: str) -> str:
         chroma_client.delete_collection("app_chunks")
     except Exception:
         pass
-    collection = chroma_client.create_collection("app_chunks")
+    collection = chroma_client.create_collection(
+    "app_chunks",
+    embedding_function=embedding_fn
+    )
+
     index_chunks(source, collection)
 
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
