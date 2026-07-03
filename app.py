@@ -62,6 +62,8 @@ def place_order(req: OrderRequest):
     # Assuming the coupon is a percentage discount, we need to ensure the coupon is applied correctly
     if req.coupon == "save50":  # Added a condition to handle specific coupon logic
         total *= 0.5  # Apply the 50% discount correctly
+    else:  # Added an else clause to ensure other coupon types are handled correctly
+        total = calculate_price(product["price"], req.quantity, req.coupon)  # Recalculate total if not save50
 
     return {
         "product":  product["name"],
