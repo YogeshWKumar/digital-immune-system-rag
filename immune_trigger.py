@@ -753,9 +753,7 @@ print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
 
     sandbox.commands.run(
-        "pip install --user 'langchain-core[all]' && "
-        "pip install --user langgraph langsmith langchain_openai "
-        "fastapi pytest httpx httpx2 smolagents openai python-multipart chromadb sentence-transformers --no-deps transformers tokenizers huggingface-hub scikit-learn numpy",
+        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph chromadb sentence-transformers numpy",
         timeout=180
     )
 
