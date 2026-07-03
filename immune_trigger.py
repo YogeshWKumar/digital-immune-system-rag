@@ -378,7 +378,7 @@ def patch_app(reason: str) -> str:
 
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
     query  = failure_log
-    top_2  = retrieve_top_k_chroma(query, collection, k=2)
+    top_2  = retrieve_top_k_chroma(query, collection, k=1)
 
     # ── Step 3: Build focused prompt ──────────────────────────────────────────
     sections = []
