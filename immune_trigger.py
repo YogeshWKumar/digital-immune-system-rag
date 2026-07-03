@@ -210,12 +210,30 @@ import chromadb
 # Initialise ChromaDB inside the sandbox
 chroma_client = chromadb.Client()  # in-memory
 
+from chromadb import EmbeddingFunction, Documents, Embeddings
+from openai import OpenAI as OpenAIClient
+
+openai_client = OpenAIClient(
+    base_url="https://openai.vocareum.com/v1",
+    api_key=os.environ["OPENAI_API_KEY"]
+)
+
 # Stage 1 — Index all chunks into ChromaDB:
 def index_chunks(source_code: str, collection) -> None:
     chunks = chunk_by_class_and_function(source_code)
 
+    # Embed manually using OpenAI
+    embeddings = [
+        openai_client.embeddings.create(
+            model="text-embedding-3-small",
+            input=c["source"]
+        ).data[0].embedding
+        for c in chunks
+    ]
+
     collection.add(
         documents=[c["source"] for c in chunks],
+        embeddings=embeddings,
         metadatas=[{
             "label":      c["label"],
             "class_name": c["class_name"] or "",
@@ -229,8 +247,14 @@ def index_chunks(source_code: str, collection) -> None:
 
 # Stage 2 — Query ChromaDB instead of manual cosine similarity:
 def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
+    # Embed query manually using OpenAI
+    query_embedding = openai_client.embeddings.create(
+        model="text-embedding-3-small",
+        input=query
+    ).data[0].embedding
+
     results = collection.query(
-        query_texts=[query],
+        query_embeddings=[query_embedding],
         n_results=k,
         include=["documents", "metadatas", "distances"]
     )
@@ -252,27 +276,6 @@ def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
             "score":      1 - dist  # chroma returns distance, convert to similarity
         })
     return chunks
-
-from chromadb import EmbeddingFunction, Documents, Embeddings
-from openai import OpenAI as OpenAIClient
-
-openai_client = OpenAIClient(
-    base_url="https://openai.vocareum.com/v1",
-    api_key=os.environ["OPENAI_API_KEY"]
-)
-
-class OpenAIEmbeddingFunction(EmbeddingFunction):
-    def __call__(self, input: Documents) -> Embeddings:
-        embeddings = []
-        for text in input:
-            response = openai_client.embeddings.create(
-                model="text-embedding-3-small",
-                input=text
-            )
-            embeddings.append(response.data[0].embedding)
-        return embeddings
-
-embedding_fn = OpenAIEmbeddingFunction()
 
 def replace_function(source: str,
                      func_name: str,
@@ -394,10 +397,7 @@ def patch_app(reason: str) -> str:
         chroma_client.delete_collection("app_chunks")
     except Exception:
         pass
-    collection = chroma_client.create_collection(
-    "app_chunks",
-    embedding_function=embedding_fn
-    )
+    collection = chroma_client.create_collection("app_chunks")
 
     index_chunks(source, collection)
 

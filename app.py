@@ -67,7 +67,5 @@ def place_order(req: OrderRequest):
 
 
 @app.get("/health")
-def save50_coupon(price):  # Assuming this method exists and takes a price as input
-    discount = 0.50  # This indicates a 50% discount
-    total = price * (1 - discount)  # Calculate the total after applying the discount
-    return total  # Ensure this returns the correct discounted total
+def health():
+    return {"status": "ok"}
