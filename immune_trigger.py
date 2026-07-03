@@ -272,7 +272,7 @@ class OpenAIEmbeddingFunction(EmbeddingFunction):
             embeddings.append(response.data[0].embedding)
         return embeddings
 
-    embedding_fn = OpenAIEmbeddingFunction()
+embedding_fn = OpenAIEmbeddingFunction()
 
 def replace_function(source: str,
                      func_name: str,
