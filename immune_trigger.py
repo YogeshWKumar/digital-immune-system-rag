@@ -380,6 +380,17 @@ def patch_app(reason: str) -> str:
     query  = failure_log
     top_2  = retrieve_top_k_chroma(query, collection, k=1)
 
+    # ── Add these prints to see what chunk was retrieved ──────────────────────────
+    print("\\n=== RAG Retrieval Result ===")
+    for i, c in enumerate(top_2):
+        print(f"Chunk {i+1}: {c['label']}")
+        print(f"  Class:    {c['class_name']}")
+        print(f"  Method:   {c['func_name']}")
+        print(f"  Lines:    {c['start_line']}-{c['end_line']}")
+        print(f"  Score:    {c['score']:.4f}")
+        print(f"  Source:\\n{c['source']}")
+    print("=== End RAG Result ===\\n")
+
     # ── Step 3: Build focused prompt ──────────────────────────────────────────
     sections = []
     for c in top_2:
