@@ -67,7 +67,5 @@ def place_order(req: OrderRequest):
 
 
 @app.get("/health")
-def save50_coupon():  # Assuming this is the method that needs fixing
-    # Some logic that calculates the total
-    total = 8.5 * 0.5  # Changed from 4.0 to 8.5 * 0.5 to apply the 50% discount correctly
-    return {"total": total}
+def health():
+    return {"status": "ok"}

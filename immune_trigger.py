@@ -397,7 +397,10 @@ def patch_app(reason: str) -> str:
         chroma_client.delete_collection("app_chunks")
     except Exception:
         pass
-    collection = chroma_client.create_collection("app_chunks")
+    collection = chroma_client.create_collection(
+    "app_chunks",
+    metadata={"hnsw:space": "cosine"}
+    )
 
     index_chunks(source, collection)
 
