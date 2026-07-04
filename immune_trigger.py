@@ -463,11 +463,12 @@ def patch_app(reason: str) -> str:
 
     # Dynamically generating the value of k based on failures in failure_log
     import re
-    failed_count = len(re.findall(r'FAILED ', failure_log))
+    failed_count = len(re.findall(r'^FAILED ', failure_log, re.MULTILINE))
     k = max(1, failed_count)
 
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
     top_2  = retrieve_top_k_chroma(query, collection, k=k)
+    print("k=" + str(k) + " top_2 length=" + str(len(top_2)))
 
     # ── Add these prints to see what chunk was retrieved ──────────────────────────
     print("\\n=== RAG Retrieval Result ===")
@@ -515,6 +516,16 @@ def patch_app(reason: str) -> str:
                 line for line in fixed_func.split("\\n")
                 if not line.startswith("```")
             ).strip()
+
+        # Strip prompt headers the LLM sometimes echoes back
+        fixed_func = "\n".join(
+            line for line in fixed_func.split("\n")
+            if not line.strip().startswith("# Class:")
+            and not line.strip().startswith("# Method:")
+            and not line.strip().startswith("# Function:")
+            and not line.strip().startswith("# Signature:")
+            and not line.strip().startswith("# Location:")
+        ).strip()
 
         fixed_source = replace_function(
             fixed_source,
