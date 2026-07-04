@@ -342,6 +342,13 @@ def replace_function(source: str,
                     continue
                 returned_indent = len(non_empty[0]) - len(non_empty[0].lstrip())
 
+                # ── Debug prints ──────────────────────────────────────────────────────────────
+                print("original_indent=" + str(original_indent))
+                print("returned_indent=" + str(returned_indent))
+                print("first non_empty line='" + non_empty[0] + "'")
+                print("func_name=" + func_name)
+                # ─────────────────────────────────────────────────────────────────────────────
+
                 reindented = []
                 for line in new_lines:
                     if line.strip():
