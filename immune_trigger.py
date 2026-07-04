@@ -222,6 +222,20 @@ openai_client = OpenAIClient(
 def index_chunks(source_code: str, collection) -> None:
     chunks = chunk_by_class_and_function(source_code)
 
+    # ── Print all chunks so they appear in the Actions log ────────────────────
+    print("\\n=== All chunks generated ===")
+    for i, c in enumerate(chunks):
+        print("Chunk " + str(i+1) + ": " + c["label"])
+        print("  Class:      " + str(c["class_name"]))
+        print("  Method:     " + c["func_name"])
+        print("  Lines:      " + str(c["start_line"]) + "-" + str(c["end_line"]))
+        print("  Signature:  " + c["func_sig"])
+        print("  Source:")
+        print(c["source"])
+        print("")
+    print("Total chunks: " + str(len(chunks)))
+    print("=== End chunks ===\\n")
+
     # Embed manually using OpenAI
     embeddings = [
         openai_client.embeddings.create(
