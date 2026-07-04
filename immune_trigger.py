@@ -464,7 +464,7 @@ def patch_app(reason: str) -> str:
     # Dynamically generating the value of k based on failures in failure_log
     import re
     failed_count = len(re.findall(r'FAILED ', failure_log))
-    k = 3 if failed_count > 1 else 1
+    k = max(1, failed_count)
 
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
     top_2  = retrieve_top_k_chroma(query, collection, k=k)
