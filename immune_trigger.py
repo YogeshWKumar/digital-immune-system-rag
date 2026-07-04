@@ -519,7 +519,7 @@ def patch_app(reason: str) -> str:
 
         # Strip prompt headers the LLM sometimes echoes back
         fixed_func = "\\n".join(
-            line for line in fixed_func.split("\n")
+            line for line in fixed_func.split("\\n")
             if not line.strip().startswith("# Class:")
             and not line.strip().startswith("# Method:")
             and not line.strip().startswith("# Function:")
