@@ -531,7 +531,8 @@ def patch_app(reason: str) -> str:
                 line for line in fixed_func.split("\\n")
                 if not line.startswith("```")
             ).strip()
-
+        print("After fence strip: " + repr(fixed_func[:100]))
+        
         # Strip prompt headers the LLM sometimes echoes back
         fixed_func = "\\n".join(
             line for line in fixed_func.split("\\n")
