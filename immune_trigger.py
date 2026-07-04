@@ -502,6 +502,7 @@ def patch_app(reason: str) -> str:
     	    f"CI failure output:\\n{failure_log}\\n\\n"
     	    f"Reason: {reason}\\n\\n"
       	    "Fix ONLY this method. "
+            "Do NOT add any new lines, logic, or improvements."
     	    "Preserve ALL comments, blank lines, and formatting exactly as in the original. "
     	    "Do NOT reformat, clean up, or remove any comments. "
     	    "For each changed line, add an inline comment explaining what was changed. "
