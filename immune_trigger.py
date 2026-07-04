@@ -541,7 +541,7 @@ def patch_app(reason: str) -> str:
             and not line.strip().startswith("# Function:")
             and not line.strip().startswith("# Signature:")
             and not line.strip().startswith("# Location:")
-        ).strip()
+        ).strip("\\n")
 
         fixed_source = replace_function(
             fixed_source,
