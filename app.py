@@ -16,8 +16,8 @@ class Save10Discount:
     """Applies a 10% discount to the subtotal."""
 
     def apply(self, subtotal: float) -> float:
-        """Returns subtotal after 10% discount."""
-        return round(subtotal * 0.9, 2)
+            """Returns subtotal after 10% discount."""
+            return round(subtotal * 0.9, 2)  # This line is correct; no change needed.
 
 
 # ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
@@ -25,8 +25,8 @@ class Save50Discount:
     """Applies a 50% discount to the subtotal."""
 
     def apply(self, subtotal: float) -> float:
-        """Returns subtotal after 50% discount."""
-        return round(subtotal * 0.5, 2)
+            """Returns subtotal after 50% discount."""
+            return round(subtotal * 0.5, 2)  # This line is correct as it applies a 50% discount
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -37,11 +37,11 @@ save50 = Save50Discount()
 def calculate_price(price: float, quantity: int,
                     coupon: Optional[str]) -> float:
     """Orchestrates discount classes to produce final price."""
-    subtotal = round(price + quantity, 2)
+    subtotal = round(price * quantity, 2)  # Changed '+' to '*' to calculate subtotal correctly
     if coupon == "SAVE10":
-        return save10.apply(subtotal)
+        return round(save10.apply(subtotal), 2)  # Added rounding to ensure consistency in return value
     elif coupon == "SAVE50":
-        return save50.apply(subtotal)
+        return round(save50.apply(subtotal), 2)  # Added rounding to ensure consistency in return value
     return subtotal
 
 
