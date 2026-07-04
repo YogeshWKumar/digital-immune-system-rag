@@ -24,9 +24,9 @@ class Save10Discount:
 class Save50Discount:
     """Applies a 50% discount to the subtotal."""
 
-    def apply(self, subtotal: float) -> float:
+def apply(self, subtotal: float) -> float:
         """Returns subtotal after 50% discount."""
-        return round(subtotal + 0.5, 2)
+        return round(subtotal * 0.5, 2)  # Changed from subtotal + 0.5 to subtotal * 0.5 to apply a 50% discount
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
