@@ -243,6 +243,7 @@ def index_chunks(source_code: str, collection) -> None:
             input=(
                 "Function: " + c["label"] + "\\n"
                 + "Signature: " + c["func_sig"] + "\\n"
+                + "Class: " + str(c["class_name"]) + "\\n"
                 + c["source"]
             )
         ).data[0].embedding
