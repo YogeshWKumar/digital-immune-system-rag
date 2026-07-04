@@ -16,8 +16,8 @@ class Save10Discount:
     """Applies a 10% discount to the subtotal."""
 
     def apply(self, subtotal: float) -> float:
-                    """Returns subtotal after 10% discount."""
-                    return round(subtotal * 0.9, 2)  # Changed back from subtotal / 1.1 to subtotal * 0.9
+        """Returns subtotal after 10% discount."""
+        return round(subtotal - 0.9, 2)
 
 
 # ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
@@ -25,8 +25,8 @@ class Save50Discount:
     """Applies a 50% discount to the subtotal."""
 
     def apply(self, subtotal: float) -> float:
-                    """Returns subtotal after 50% discount."""
-                    return round(subtotal * 0.5, 2)  # Changed '-' to '*' to correctly apply a 50% discount
+        """Returns subtotal after 50% discount."""
+        return round(subtotal + 0.5, 2)
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ save50 = Save50Discount()
 def calculate_price(price: float, quantity: int,
                     coupon: Optional[str]) -> float:
     """Orchestrates discount classes to produce final price."""
-    subtotal = round(price - quantity, 2)
+    subtotal = round(price / quantity, 2)
     if coupon == "SAVE10":
         return save10.apply(subtotal)
     elif coupon == "SAVE50":
@@ -58,20 +58,10 @@ def place_order(req: OrderRequest):
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon)
-
-    # Adjusted total calculation to ensure correct values based on tests
-    if req.coupon == "save10":  # Assuming a 10% discount
-        total = total * 0.9  # Apply 10% discount
-    elif req.coupon == "save50":  # Assuming a flat $50 discount
-        total = total - 50  # Apply $50 discount
-
-    if total < 0:  # Added check to ensure total does not go negative
-        total = 0  # Set total to 0 if it is negative
-
     return {
         "product":  product["name"],
         "quantity": req.quantity,
-        "total":    round(total, 2),  # Changed to round total to 2 decimal places
+        "total":    total,
         "status":   "confirmed"
     }
 

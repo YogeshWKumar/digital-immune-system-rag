@@ -336,16 +336,18 @@ def replace_function(source: str,
             # Re-indent the new function to match original
             new_lines = new_func.splitlines()
             if new_lines:
-                # Detect indentation of returned function
-                first_line = new_lines[0]
-                returned_indent = len(first_line) - len(first_line.lstrip())
-                # Re-indent all lines
+                # Use first non-empty line as base indent reference
+                non_empty = [l for l in new_lines if l.strip()]
+                if not non_empty:
+                    continue
+                returned_indent = len(non_empty[0]) - len(non_empty[0].lstrip())
+
                 reindented = []
                 for line in new_lines:
                     if line.strip():
                         line_indent = len(line) - len(line.lstrip())
-                        extra = line_indent - returned_indent
-                        reindented.append(indent + " " * max(0, extra) + line.lstrip())
+                        extra = max(0, line_indent - returned_indent)
+                        reindented.append(indent + " " * extra + line.lstrip())
                     else:
                         reindented.append("")
                 new_func = "\\n".join(reindented)
