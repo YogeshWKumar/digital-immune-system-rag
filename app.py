@@ -16,8 +16,8 @@ class Save10Discount:
     """Applies a 10% discount to the subtotal."""
 
     def apply(self, subtotal: float) -> float:
-                    """Returns subtotal after 10% discount."""
-                    return round(subtotal * 0.9, 2)  # Changed from subtotal / 0.9 to subtotal * 0.9 to correctly apply a 10% discount.
+        """Returns subtotal after 10% discount."""
+        return round(subtotal / 0.9, 2)
 
 
 # ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
@@ -25,8 +25,8 @@ class Save50Discount:
     """Applies a 50% discount to the subtotal."""
 
     def apply(self, subtotal: float) -> float:
-                """Returns subtotal after 50% discount."""
-                return round(subtotal * 0.5, 2)  # Changed from subtracting 0.5 to multiplying by 0.5 for a 50% discount
+        """Returns subtotal after 50% discount."""
+        return round(subtotal - 0.5, 2)
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -37,12 +37,12 @@ save50 = Save50Discount()
 def calculate_price(price: float, quantity: int,
                     coupon: Optional[str]) -> float:
     """Orchestrates discount classes to produce final price."""
-    subtotal = round(price * quantity, 2)  # Changed from price / quantity to price * quantity
+    subtotal = round(price / quantity, 2)
     if coupon == "SAVE10":
-        return round(save10.apply(subtotal), 2)  # Added rounding to the return value
+        return save10.apply(subtotal)
     elif coupon == "SAVE50":
-        return round(save50.apply(subtotal), 2)  # Added rounding to the return value
-    return round(subtotal, 2)  # Added rounding to the subtotal return value
+        return save50.apply(subtotal)
+    return subtotal
 
 
 # ── Request model ──────────────────────────────────────────────────────────────
@@ -58,11 +58,6 @@ def place_order(req: OrderRequest):
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon)
-
-    # Assuming the product price is per unit, we need to multiply by quantity
-    total = product["price"] * req.quantity - total  # Adjusted total calculation
-    total = product["price"] * req.quantity - total  # Corrected total calculation to reflect total after coupon
-
     return {
         "product":  product["name"],
         "quantity": req.quantity,
@@ -72,9 +67,5 @@ def place_order(req: OrderRequest):
 
 
 @app.get("/health")
-# Class:     None
-# Method:    health
-# Class:     None
-# Method:    health
 def health():
-    return {"status": "ok", "total": 0.0}  # Changed total key value to 0.0 to match expected output for basic order
+    return {"status": "ok"}

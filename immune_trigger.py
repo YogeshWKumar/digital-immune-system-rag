@@ -483,11 +483,21 @@ def patch_app(reason: str) -> str:
     # ── Step 3, 4, 5: Fix each retrieved chunk independently ──────────────────
     fixed_source = source
     for c in top_2:
+        # Re-extract the current source of this function from fixed_source
+        # so the LLM sees what the function looks like NOW not at index time
+        current_chunks = chunk_by_class_and_function(fixed_source)
+        current_chunk = next(
+            (ch for ch in current_chunks
+            if ch["func_name"] == c["func_name"]
+            and ch["class_name"] == (c["class_name"] or "")),
+            c  # fallback to original if not found
+        )
+
         fix_prompt = (
             f"This method contains a bug:\\n\\n"
-    	    f"# Class:     {str(c['class_name'])}\\n"
-    	    f"# Method:    {c['func_name']}\\n"
-    	    f"{c['source']}\\n\\n"
+    	    f"# Class:     {str(current_chunk['class_name'])}\\n"
+    	    f"# Method:    {current_chunk['func_name']}\\n"
+    	    f"{current_chunk['source']}\\n\\n"
     	    f"CI failure output:\\n{failure_log}\\n\\n"
     	    f"Reason: {reason}\\n\\n"
       	    "Fix ONLY this method. "
