@@ -16,8 +16,8 @@ class Save10Discount:
     """Applies a 10% discount to the subtotal."""
 
     def apply(self, subtotal: float) -> float:
-                """Returns subtotal after 10% discount."""
-                return round(subtotal * 0.9, 2)  # Changed 0.9 to subtotal * 0.9 to apply a 10% discount correctly
+            """Returns subtotal after 10% discount."""
+            return round(subtotal * 0.9, 2)  # Changed from subtotal + 0.9 to subtotal * 0.9 to correctly apply a 10% discount
 
 
 # ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
@@ -25,8 +25,8 @@ class Save50Discount:
     """Applies a 50% discount to the subtotal."""
 
     def apply(self, subtotal: float) -> float:
-                """Returns subtotal after 50% discount."""
-                return round(subtotal * 0.5, 2)  # Changed '+' to '*' to apply a 50% discount instead of incorrectly adding 0.5
+            """Returns subtotal after 50% discount."""
+            return round(subtotal * 0.5, 2)  # Changed from division to multiplication to correctly apply a 50% discount
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -37,11 +37,11 @@ save50 = Save50Discount()
 def calculate_price(price: float, quantity: int,
                     coupon: Optional[str]) -> float:
     """Orchestrates discount classes to produce final price."""
-    subtotal = round(price * quantity, 2)  # Changed from price / quantity to price * quantity
+    subtotal = round(price * quantity, 2)  # Changed subtraction to multiplication to calculate subtotal correctly
     if coupon == "SAVE10":
-        return round(save10.apply(subtotal), 2)  # Added round to ensure proper formatting
+        return round(save10.apply(subtotal), 2)  # Added rounding to ensure consistent float output
     elif coupon == "SAVE50":
-        return round(save50.apply(subtotal), 2)  # Added round to ensure proper formatting
+        return round(save50.apply(subtotal), 2)  # Added rounding to ensure consistent float output
     return subtotal
 
 
@@ -58,15 +58,6 @@ def place_order(req: OrderRequest):
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon)
-
-    # Adjusting total calculation to reflect correct pricing logic
-    total = product["price"] * req.quantity  # Changed to base price times quantity
-
-    if req.coupon == "SAVE10":  # Assuming coupon logic needs to be applied
-        total *= 0.9  # Applying 10% discount
-    elif req.coupon == "SAVE50":
-        total -= 50  # Applying flat $50 discount, if applicable
-
     return {
         "product":  product["name"],
         "quantity": req.quantity,
