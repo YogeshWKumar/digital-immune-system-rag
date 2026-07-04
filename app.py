@@ -37,7 +37,7 @@ save50 = Save50Discount()
 def calculate_price(price: float, quantity: int,
                     coupon: Optional[str]) -> float:
     """Orchestrates discount classes to produce final price."""
-    subtotal = round(price * quantity, 2)
+    subtotal = round(price / quantity, 2)
     if coupon == "SAVE10":
         return save10.apply(subtotal)
     elif coupon == "SAVE50":
