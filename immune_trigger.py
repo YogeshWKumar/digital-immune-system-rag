@@ -522,6 +522,10 @@ def patch_app(reason: str) -> str:
         response   = model([ChatMessage(role="user", content=fix_prompt)])
         fixed_func = response.content.strip()
 
+        # ── Debug print ───────────────────────────────────────────────────────────────
+        print("new_func repr='" + repr(fixed_func[:200]) + "'")
+        # ─────────────────────────────────────────────────────────────────────────────
+
         if fixed_func.startswith("```"):
             fixed_func = "\\n".join(
                 line for line in fixed_func.split("\\n")
