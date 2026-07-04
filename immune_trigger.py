@@ -269,7 +269,7 @@ def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=k,
+        n_results=collection.count(),
         include=["documents", "metadatas", "distances"]
     )
 
@@ -289,7 +289,14 @@ def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
             "end_line":   int(meta["end_line"]),
             "score":      1 - dist  # chroma returns distance, convert to similarity
         })
-    return chunks
+
+    print("\\n=== ChromaDB scores for all chunks ===")
+    for i, c in enumerate(chunks):
+        print("  " + str(i+1) + ". " + c["label"]
+              + "  score: " + str(round(c["score"], 4)))
+    print("=== End scores ===\\n")
+
+    return chunks[:k]
 
 def replace_function(source: str,
                      func_name: str,
