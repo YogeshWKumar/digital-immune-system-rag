@@ -240,7 +240,11 @@ def index_chunks(source_code: str, collection) -> None:
     embeddings = [
         openai_client.embeddings.create(
             model="text-embedding-3-small",
-            input=c["source"]
+            input=(
+                "Function: " + c["label"] + "\\n"
+                + "Signature: " + c["func_sig"] + "\\n"
+                + c["source"]
+            )
         ).data[0].embedding
         for c in chunks
     ]
