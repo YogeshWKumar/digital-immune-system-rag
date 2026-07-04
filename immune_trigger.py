@@ -461,8 +461,13 @@ def patch_app(reason: str) -> str:
     query = extracted.content.strip()
     print("\\nRAG Query: " + query)
 
+    # Dynamically generating the value of k based on failures in failure_log
+    import re
+    failed_count = len(re.findall(r'FAILED ', failure_log))
+    k = 3 if failed_count > 1 else 1
+
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
-    top_2  = retrieve_top_k_chroma(query, collection, k=1)
+    top_2  = retrieve_top_k_chroma(query, collection, k=k)
 
     # ── Add these prints to see what chunk was retrieved ──────────────────────────
     print("\\n=== RAG Retrieval Result ===")
@@ -475,56 +480,39 @@ def patch_app(reason: str) -> str:
         print(f"  Source:\\n{c['source']}")
     print("=== End RAG Result ===\\n")
 
-    # ── Step 3: Build focused prompt ──────────────────────────────────────────
-    sections = []
+    # ── Step 3, 4, 5: Fix each retrieved chunk independently ──────────────────
+    fixed_source = source
     for c in top_2:
-        if c["class_name"]:
-            header = (
-                f"# Class:     {c['class_name']}\\n"
-                f"# Method:    {c['func_name']}\\n"
-                f"# Signature: {c['func_sig']}\\n"
-                f"# Location:  lines {c['start_line']}-{c['end_line']}\\n"
-            )
-        else:
-            header = (
-                f"# Function:  {c['func_name']}\\n"
-                f"# Signature: {c['func_sig']}\\n"
-                f"# Location:  lines {c['start_line']}-{c['end_line']}\\n"
-            )
-        sections.append(header + c["source"])
+        fix_prompt = (
+            f"This method contains a bug:\\n\\n"
+    	    f"# Class:     {str(c['class_name'])}\\n"
+    	    f"# Method:    {c['func_name']}\\n"
+    	    f"{c['source']}\\n\\n"
+    	    f"CI failure output:\\n{failure_log}\\n\\n"
+    	    f"Reason: {reason}\\n\\n"
+      	    "Fix ONLY this method. "
+    	    "Preserve ALL comments, blank lines, and formatting exactly as in the original. "
+    	    "Do NOT reformat, clean up, or remove any comments. "
+    	    "For each changed line, add an inline comment explaining what was changed. "
+    	    "Return ONLY the corrected method — not the full file."
+	    )
 
-    relevant_code = "\\n\\n".join(sections)
+        response   = model([ChatMessage(role="user", content=fix_prompt)])
+        fixed_func = response.content.strip()
 
-    prompt = (
-        f"The following class/method is most likely to contain the bug:\\n{relevant_code}\\n\\n"
-        f"CI failure output:\\n{failure_log}\\n\\n"
-        f"Reason: {reason}\\n\\n"
-        "Trace the failing assertion back through the shown "
-        "class and method to find the exact line producing the wrong value.\\n"
-        "Fix ONLY the broken method. "
-        "Preserve ALL comments, blank lines, and formatting exactly as in the original. "
-        "Do NOT reformat, clean up, or remove any comments. "
-        "For each changed line, add an inline comment explaining what was changed. "
-        "Return ONLY the corrected method — not the full file."
-    )
+        if fixed_func.startswith("```"):
+            fixed_func = "\\n".join(
+                line for line in fixed_func.split("\\n")
+                if not line.startswith("```")
+            ).strip()
 
-    # ── Step 4: LLM generates the fix ─────────────────────────────────────────
-    response   = model([ChatMessage(role="user", content=prompt)])
-    fixed_func = response.content.strip()
+        fixed_source = replace_function(
+            fixed_source,
+            c["func_name"],
+            fixed_func,
+            class_name=c["class_name"]
+        )
 
-    if fixed_func.startswith("```"):
-        fixed_func = "\\n".join(
-            line for line in fixed_func.split("\\n")
-            if not line.startswith("```")
-        ).strip()
-
-    # ── Step 5: Merge fixed method back into full app.py ──────────────────────
-    fixed_source = replace_function(
-        source,
-        top_2[0]["func_name"],
-        fixed_func,
-        class_name=top_2[0]["class_name"]
-    )
 
     # ── Step 6: Validate syntax ────────────────────────────────────────────────
     try:
