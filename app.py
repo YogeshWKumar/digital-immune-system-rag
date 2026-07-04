@@ -68,4 +68,4 @@ def place_order(req: OrderRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "total": 4.0}  # Changed "total": 8.5 to "total": 4.0 to match the expected value in the test
+    return {"status": "ok"}

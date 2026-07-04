@@ -404,8 +404,18 @@ def patch_app(reason: str) -> str:
 
     index_chunks(source, collection)
 
+    # extract semantic query from failure log
+    extract_prompt = (
+        "Extract a concise description of what is failing from this CI log. "
+        "Focus on: which test failed, what value was expected, what value was returned. "
+        "Return only 1-2 sentences, no code, no pytest output.\\n\\n"
+        + failure_log
+    )
+    extracted = model([ChatMessage(role="user", content=extract_prompt)])
+    query = extracted.content.strip()
+    print("\\nRAG Query: " + query)
+
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
-    query  = failure_log
     top_2  = retrieve_top_k_chroma(query, collection, k=1)
 
     # ── Add these prints to see what chunk was retrieved ──────────────────────────
