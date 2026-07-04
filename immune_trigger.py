@@ -281,14 +281,15 @@ def replace_function(source: str,
                      func_name: str,
                      new_func: str,
                      class_name: str = None) -> str:
+    
     """
     Replaces a function or method in source.
     If class_name is provided, only replaces the method inside that class.
     """
+
     tree  = ast.parse(source)
     lines = source.splitlines()
 
-    # Build class ranges first
     class_ranges = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
@@ -298,17 +299,37 @@ def replace_function(source: str,
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == func_name:
             parent_class = class_ranges.get(node.lineno)
-
-            # If class_name specified, only replace method in that class
             if class_name and parent_class != class_name:
                 continue
+
+            # Detect original indentation from first line of function
+            original_indent = len(lines[node.lineno - 1]) \
+                              - len(lines[node.lineno - 1].lstrip())
+            indent = " " * original_indent
+
+            # Re-indent the new function to match original
+            new_lines = new_func.splitlines()
+            if new_lines:
+                # Detect indentation of returned function
+                first_line = new_lines[0]
+                returned_indent = len(first_line) - len(first_line.lstrip())
+                # Re-indent all lines
+                reindented = []
+                for line in new_lines:
+                    if line.strip():
+                        line_indent = len(line) - len(line.lstrip())
+                        extra = line_indent - returned_indent
+                        reindented.append(indent + " " * max(0, extra) + line.lstrip())
+                    else:
+                        reindented.append("")
+                new_func = "\\n".join(reindented)
 
             start = node.lineno - 1
             end   = node.end_lineno
             lines[start:end] = new_func.splitlines()
             return "\\n".join(lines)
 
-    return source  # fallback
+    return source
 
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
