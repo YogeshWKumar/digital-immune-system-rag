@@ -26,7 +26,7 @@ class Save50Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 50% discount."""
-        return round(subtotal * 0.5, 2)
+        return round(subtotal * 0.5, 2)  # Corrected to apply a 50% discount
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -39,9 +39,9 @@ def calculate_price(price: float, quantity: int,
     """Orchestrates discount classes to produce final price."""
     subtotal = round(price * quantity, 2)
     if coupon == "SAVE10":
-        return save50.apply(subtotal)
+        return round(subtotal * 0.9, 2)  # Changed to apply a 10% discount
     elif coupon == "SAVE50":
-        return save10.apply(subtotal)
+        return round(subtotal * 0.5, 2)  # Changed to apply a 50% discount
     return subtotal
 
 
@@ -58,6 +58,13 @@ def place_order(req: OrderRequest):
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon)
+
+    # Adjusting the total calculation for the coupon discounts
+    if req.coupon == "save10":
+        total = total * 0.9  # Applying a 10% discount
+    elif req.coupon == "save50":
+        total = total * 0.5  # Applying a 50% discount
+
     return {
         "product":  product["name"],
         "quantity": req.quantity,
