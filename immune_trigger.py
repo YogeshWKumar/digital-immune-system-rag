@@ -302,9 +302,7 @@ def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
     print("=== End scores ===\\n")
 
     return chunks[:k]
-
-from FlagEmbedding import FlagReranker
-reranker = FlagReranker("BAAI/bge-reranker-base", use_fp16=True)    
+    
 
 def replace_function(source: str,
                      func_name: str,
