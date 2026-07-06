@@ -194,6 +194,18 @@ def chunk_by_class_and_function(source_code: str) -> list[dict]:
             else:
                 label = node.name
 
+            # ── Extract calls scoped to this function only ────────────────────
+            calls = []
+            for child in ast.walk(node):
+                if isinstance(child, ast.Call):
+                    if isinstance(child.func, ast.Name):
+                        calls.append(child.func.id)
+                    elif isinstance(child.func, ast.Attribute):
+                        if isinstance(child.func.value, ast.Name):
+                            calls.append(child.func.value.id + "." + child.func.attr)
+                        else:
+                            calls.append(child.func.attr)    
+
             chunks.append({
                 "label":      label,            # e.g. "Save10Discount.apply"
                 "class_name": parent_class,     # e.g. "Save10Discount" or None
@@ -202,6 +214,7 @@ def chunk_by_class_and_function(source_code: str) -> list[dict]:
                 "start_line": node.lineno,
                 "end_line":   node.end_lineno,
                 "source":     source,
+                "calls":      calls,
             })
 
     return chunks
@@ -230,6 +243,7 @@ def index_chunks(source_code: str, collection) -> None:
         print("  Method:     " + c["func_name"])
         print("  Lines:      " + str(c["start_line"]) + "-" + str(c["end_line"]))
         print("  Signature:  " + c["func_sig"])
+        print("  Calls:      " + ", ".join(c["calls"]))  # ← print calls
         print("  Source:")
         print(c["source"])
         print("")
@@ -244,6 +258,7 @@ def index_chunks(source_code: str, collection) -> None:
                 "Function: " + c["label"] + "\\n"
                 + "Signature: " + c["func_sig"] + "\\n"
                 + "Class: " + str(c["class_name"]) + "\\n"
+                + "Calls: " + ", ".join(c["calls"]) + "\\n"
                 + c["source"]
             )
         ).data[0].embedding
@@ -260,6 +275,7 @@ def index_chunks(source_code: str, collection) -> None:
             "func_sig":   c["func_sig"],
             "start_line": str(c["start_line"]),
             "end_line":   str(c["end_line"]),
+            "calls":      ", ".join(c["calls"])
         } for c in chunks],
         ids=[c["label"] for c in chunks]
     )
