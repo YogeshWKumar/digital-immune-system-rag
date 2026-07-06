@@ -536,7 +536,7 @@ def patch_app(reason: str) -> str:
         )
 
         fix_prompt = (
-            f"This method contains a bug:\\n\\n"
+            f"This method MAY OR MAY NOT contain a bug:\\n\\n"
     	    f"# Class:     {str(current_chunk['class_name'])}\\n"
     	    f"# Method:    {current_chunk['func_name']}\\n"
     	    f"{current_chunk['source']}\\n\\n"
