@@ -496,6 +496,12 @@ def patch_app(reason: str) -> str:
         scored.append(c)
 
     reranked = sorted(scored, key=lambda x: x["rerank_score"], reverse=True)
+
+    print("\\n=== Cross Encoder scores for all chunks ===")
+    for c in reranked:
+        print(f"  {c['label']}  rerank: {c['rerank_score']:.1f}")
+    print("=== End scores ===\\n")
+
     top_2 = [c for c in reranked if c["rerank_score"] > 0]
     if not top_2:
         top_2 = reranked[:1]
@@ -507,7 +513,8 @@ def patch_app(reason: str) -> str:
         print(f"  Class:    {c['class_name']}")
         print(f"  Method:   {c['func_name']}")
         print(f"  Lines:    {c['start_line']}-{c['end_line']}")
-        print(f"  Score:    {c['score']:.4f}")
+        print(f"  Score:    {c['score']:.4f}") # ChromaDB cosine score
+        print(f"  Rerank:   {c['rerank_score']:.4f}") # Cross encoder score
         print(f"  Source:\\n{c['source']}")
     print("=== End RAG Result ===\\n")
 
@@ -531,7 +538,9 @@ def patch_app(reason: str) -> str:
     	    f"{current_chunk['source']}\\n\\n"
     	    f"CI failure output:\\n{failure_log}\\n\\n"
     	    f"Reason: {reason}\\n\\n"
-      	    "Fix ONLY this method. "
+      	    "Fix ONLY this specific method. "
+            "If this method looks correct and has no bug, return it UNCHANGED. "
+            "Do NOT modify healthy functions to compensate for bugs elsewhere. "
             "Do NOT add any new lines, logic, or improvements."
     	    "Preserve ALL comments, blank lines, and formatting exactly as in the original. "
     	    "Do NOT reformat, clean up, or remove any comments. "
