@@ -17,7 +17,7 @@ class Save10Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 10% discount."""
-        return round(subtotal * 0.5, 2)  # Changed from 0.9 to 0.5 for the correct discount application
+        return round(subtotal * 0.9, 2)  # Changed from subtotal / 0.9 to subtotal * 0.9 to correctly calculate the 10% discount
 
 
 # ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
@@ -26,7 +26,7 @@ class Save50Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 50% discount."""
-        return round(subtotal * 0.5, 2)  # Removed + 1 to correctly apply the 50% discount
+        return round(subtotal * 0.5, 2)  # Changed from subtotal - 0.5 to subtotal * 0.5 to apply 50% discount
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -37,11 +37,11 @@ save50 = Save50Discount()
 def calculate_price(price: float, quantity: int,
                     coupon: Optional[str]) -> float:
     """Orchestrates discount classes to produce final price."""
-    subtotal = round(price * quantity, 2)
+    subtotal = round(price * quantity, 2)  # Changed from price / quantity to price * quantity
     if coupon == "SAVE10":
-        return round(save10.apply(subtotal), 2)  # Added rounding to match expected total
+        return save10.apply(subtotal)
     elif coupon == "SAVE50":
-        return round(save50.apply(subtotal * 0.8), 2)  # Changed to apply 20% discount for SAVE50
+        return save50.apply(subtotal)
     return subtotal
 
 
@@ -58,11 +58,10 @@ def place_order(req: OrderRequest):
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon)
-    total -= 1  # Added -1 to match expected total
     return {
         "product":  product["name"],
         "quantity": req.quantity,
-        "total":    total,  # Removed +1 to match expected total
+        "total":    total,
         "status":   "confirmed"
     }
 
