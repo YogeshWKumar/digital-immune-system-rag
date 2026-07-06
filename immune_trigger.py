@@ -485,6 +485,10 @@ def patch_app(reason: str) -> str:
             + "Class: " + str(c["class_name"]) + "\\n"
             + "Signature: " + c["func_sig"] + "\\n"
             + c["source"] + "\\n\\n"
+            "Does this specific function directly contain the bug that causes the test failure?\\n"
+            "Score 9-10: this function has an obvious bug directly causing the failure.\\n"
+            "Score 5-8: this function might be related but the bug is not obvious here.\\n"
+            "Score 0-4: this function looks correct, not the source of the failure.\\n"
             "Return ONLY a single integer 0-10. Nothing else."
         )
         response = model([ChatMessage(role="user", content=score_prompt)])
