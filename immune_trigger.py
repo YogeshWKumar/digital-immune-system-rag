@@ -303,6 +303,9 @@ def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
 
     return chunks[:k]
 
+from FlagEmbedding import FlagReranker
+reranker = FlagReranker("BAAI/bge-reranker-base", use_fp16=True)    
+
 def replace_function(source: str,
                      func_name: str,
                      new_func: str,
@@ -471,14 +474,36 @@ def patch_app(reason: str) -> str:
     query = extracted.content.strip()
     print("\\nRAG Query: " + query)
 
-    # Dynamically generating the value of k based on failures in failure_log
-    import re
-    failed_count = len(re.findall(r'^FAILED ', failure_log, re.MULTILINE))
-    k = max(1, failed_count)
-
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
-    top_2  = retrieve_top_k_chroma(query, collection, k=k)
-    print("k=" + str(k) + " top_2 length=" + str(len(top_2)))
+    candidates = retrieve_top_k_chroma(query, collection, k=collection.count())
+
+    # Build query-document pairs
+    pairs = [
+        [
+            query,
+            "Function: " + c["label"] + "\\n"
+            + "Class: " + str(c["class_name"]) + "\\n"
+            + "Signature: " + c["func_sig"] + "\\n"
+            + c["source"]
+        ]
+        for c in candidates
+    ]
+
+    # Score all pairs at once
+    scores = reranker.compute_score(pairs)
+
+    # Attach scores and sort
+    for i, c in enumerate(candidates):
+        c["rerank_score"] = float(scores[i])
+
+    reranked = sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)
+
+    print("\\n=== BGE Reranked scores ===")
+    for c in reranked:
+        print("  " + c["label"] + "  rerank: " + str(round(c["rerank_score"], 4)))
+    print("=== End reranked ===\\n")
+
+    top_2 = reranked
 
     # ── Add these prints to see what chunk was retrieved ──────────────────────────
     print("\\n=== RAG Retrieval Result ===")
@@ -881,7 +906,7 @@ print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
 
     sandbox.commands.run(
-        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph chromadb numpy",
+        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph chromadb numpy FlagEmbedding --quiet",
         timeout=180
     )
 
