@@ -948,7 +948,7 @@ with Sandbox.create(
             "api-inference.huggingface.co", # cross encoder
             "openai.vocareum.com",          # LLM + embeddings
             "api.github.com",               # rollback_app
-            "smith.langchain.com",          # langsmith tracing
+            "*.smith.langchain.com",          # langsmith tracing
             "pypi.org",                       # pip install
             "files.pythonhosted.org",         # pip package downloads
         ],
