@@ -2,8 +2,7 @@ import os
 import json
 import base64
 import requests
-#from e2b_code_interpreter import Sandbox
-from e2b import Sandbox
+from e2b_code_interpreter import Sandbox
 
 OPENAI_KEY    = os.environ["OPENAI_API_KEY"]
 GH_TOKEN      = os.environ["GH_TOKEN"]
@@ -118,13 +117,6 @@ def update_immune_memory(memory: dict, file_sha: str, healed: bool, action: str)
 
 
 IMMUNE_CODE = '''
-# Add at the top of IMMUNE_CODE right after imports
-import urllib.request
-try:
-    urllib.request.urlopen("https://api-inference.huggingface.co", timeout=5)
-    print("HuggingFace: REACHABLE ✅")
-except Exception as e:
-    print(f"HuggingFace: NOT REACHABLE ❌ — {e}")
 import subprocess
 import os
 import sys
