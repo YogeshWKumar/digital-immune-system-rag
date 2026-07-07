@@ -941,6 +941,7 @@ print(f"Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
 app_code = get_file_from_github("app.py")
 
 print("Spinning up e2b sandbox...")
+from e2b import ALL_TRAFFIC
 with Sandbox.create(
     network={
         "allow_out": [
@@ -949,7 +950,7 @@ with Sandbox.create(
             "api.github.com",               # rollback_app
             "smith.langchain.com",          # langsmith tracing
         ],
-        "deny_out": ["ALL_TRAFFIC"]    
+        "deny_out": [ALL_TRAFFIC]    
     }
 ) as sandbox:
 
