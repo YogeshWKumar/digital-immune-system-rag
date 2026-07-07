@@ -949,6 +949,8 @@ with Sandbox.create(
             "openai.vocareum.com",          # LLM + embeddings
             "api.github.com",               # rollback_app
             "smith.langchain.com",          # langsmith tracing
+            "pypi.org",                       # pip install
+            "files.pythonhosted.org",         # pip package downloads
         ],
         "deny_out": [ALL_TRAFFIC]    
     }
