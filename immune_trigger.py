@@ -117,6 +117,13 @@ def update_immune_memory(memory: dict, file_sha: str, healed: bool, action: str)
 
 
 IMMUNE_CODE = '''
+# Add at the top of IMMUNE_CODE right after imports
+import urllib.request
+try:
+    urllib.request.urlopen("https://api-inference.huggingface.co", timeout=5)
+    print("HuggingFace: REACHABLE ✅")
+except Exception as e:
+    print(f"HuggingFace: NOT REACHABLE ❌ — {e}")
 import subprocess
 import os
 import sys
