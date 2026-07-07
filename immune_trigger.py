@@ -943,7 +943,13 @@ app_code = get_file_from_github("app.py")
 print("Spinning up e2b sandbox...")
 with Sandbox.create(
     network={
-        "allow_out": ["api-inference.huggingface.co"]
+        "allow_out": [
+            "api-inference.huggingface.co", # cross encoder
+            "openai.vocareum.com",          # LLM + embeddings
+            "api.github.com",               # rollback_app
+            "smith.langchain.com",          # langsmith tracing
+        ],
+        "deny_out": ["ALL_TRAFFIC"]    
     }
 ) as sandbox:
 
