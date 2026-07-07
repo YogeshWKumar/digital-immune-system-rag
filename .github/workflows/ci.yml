@@ -49,6 +49,7 @@ jobs:
           LANGSMITH_ENDPOINT:  ${{ secrets.LANGSMITH_ENDPOINT }}
           LANGSMITH_API_KEY:   ${{ secrets.LANGSMITH_API_KEY }}
           LANGSMITH_PROJECT:   ${{ secrets.LANGSMITH_PROJECT }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           pip install e2b-code-interpreter requests smolagents openai
           python immune_trigger.py

@@ -12,7 +12,8 @@ SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL", "")
 LANGSMITH_TRACING = os.environ["LANGSMITH_TRACING"]
 LANGSMITH_ENDPOINT = os.environ["LANGSMITH_ENDPOINT"]
 LANGSMITH_API_KEY = os.environ["LANGSMITH_API_KEY"]
-LANGSMITH_PROJECT = os.environ["LANGSMITH_PROJECT"] 
+LANGSMITH_PROJECT = os.environ["LANGSMITH_PROJECT"]
+HF_TOKEN = os.environ["HF_TOKEN"]
 
 with open("test_output.txt", encoding="utf-8") as f:
     FAILURE_LOG = f.read()
@@ -127,6 +128,7 @@ from typing import TypedDict, Optional
 from langgraph.graph import StateGraph, END
 from smolagents import ToolCallingAgent, CodeAgent, OpenAIServerModel, tool
 from fastapi.testclient import TestClient
+import requests
 
 # ── Load app ──────────────────────────────────────────────────────────────────
 spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
@@ -318,7 +320,40 @@ def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
     print("=== End scores ===\\n")
 
     return chunks[:k]
+
+def cross_encoder_rerank(query: str, candidates: list) -> list:
+    """Rerank candidates using HuggingFace hosted cross encoder."""
+    hf_token = os.environ.get("HF_TOKEN", "")
     
+    # Build query-document pairs
+    documents = [
+        "Function: " + c["label"] + "\\n"
+        + "Class: " + str(c["class_name"]) + "\\n"
+        + "Calls: " + str(c.get("calls", "")) + "\\n"
+        + c["source"]
+        for c in candidates
+    ]
+    
+    resp = requests.post(
+        "https://api-inference.huggingface.co/models/cross-encoder/ms-marco-MiniLM-L-6-v2",
+        headers={"Authorization": f"Bearer {hf_token}"},
+        json={
+            "inputs": {
+                "query": query,
+                "passages": documents
+            }
+        },
+        timeout=30
+    )
+    
+    scores = resp.json()
+    
+    # Attach scores to candidates
+    for i, c in enumerate(candidates):
+        c["rerank_score"] = float(scores[i]["score"])
+    
+    return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)    
+
 
 def replace_function(source: str,
                      func_name: str,
@@ -491,31 +526,8 @@ def patch_app(reason: str) -> str:
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
     candidates = retrieve_top_k_chroma(query, collection, k=collection.count())
 
-    scored = []
-    for c in candidates:
-        score_prompt = (
-            "Rate 0-10 how likely this function contains the bug described.\\n\\n"
-            "Test failure:\\n" + query + "\\n\\n"
-            "Function:\\n"
-            "Function: " + c["label"] + "\\n"
-            + "Class: " + str(c["class_name"]) + "\\n"
-            + "Signature: " + c["func_sig"] + "\\n"
-            + c["source"] + "\\n\\n"
-            "Does this specific function directly contain the bug that causes the test failure?\\n"
-            "Score 9-10: this function has an obvious bug directly causing the failure.\\n"
-            "Score 5-8: this function might be related but the bug is not obvious here.\\n"
-            "Score 0-4: this function looks correct, not the source of the failure.\\n"
-            "Return ONLY a single integer 0-10. Nothing else."
-        )
-        response = model([ChatMessage(role="user", content=score_prompt)])
-        try:
-            score = float(response.content.strip())
-        except:
-            score = 0.0
-        c["rerank_score"] = score
-        scored.append(c)
-
-    reranked = sorted(scored, key=lambda x: x["rerank_score"], reverse=True)
+    # ── Step 4: Cross encoder reranking via HuggingFace API ───────────────────
+    reranked = cross_encoder_rerank(query, candidates)
 
     print("\\n=== Cross Encoder scores for all chunks ===")
     for c in reranked:
@@ -956,7 +968,8 @@ with Sandbox.create() as sandbox:
             "LANGSMITH_TRACING": LANGSMITH_TRACING,
             "LANGSMITH_ENDPOINT": LANGSMITH_ENDPOINT,
             "LANGSMITH_API_KEY": LANGSMITH_API_KEY,
-            "LANGSMITH_PROJECT": LANGSMITH_PROJECT
+            "LANGSMITH_PROJECT": LANGSMITH_PROJECT,
+            "HF_TOKEN": HF_TOKEN
         }        
     )
 
