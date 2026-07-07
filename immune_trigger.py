@@ -941,7 +941,11 @@ print(f"Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
 app_code = get_file_from_github("app.py")
 
 print("Spinning up e2b sandbox...")
-with Sandbox.create() as sandbox:
+with Sandbox.create(
+    network={
+        "allow_out": ["api-inference.huggingface.co"]
+    }
+) as sandbox:
 
     sandbox.commands.run(
         "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph chromadb numpy",
