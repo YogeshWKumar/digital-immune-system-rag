@@ -948,20 +948,7 @@ print(f"Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
 app_code = get_file_from_github("app.py")
 
 print("Spinning up e2b sandbox...")
-from e2b import ALL_TRAFFIC
-with Sandbox.create(
-    network={
-        "allow_out": [
-            "api-inference.huggingface.co", # cross encoder
-            "openai.vocareum.com",          # LLM + embeddings
-            "api.github.com",               # rollback_app
-            "*.smith.langchain.com",          # langsmith tracing
-            "pypi.org",                       # pip install
-            "files.pythonhosted.org",         # pip package downloads
-        ],
-        "deny_out": [ALL_TRAFFIC]    
-    }
-) as sandbox:
+with Sandbox.create(allow_internet_access=True) as sandbox:
 
     sandbox.commands.run(
         "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph chromadb numpy",
