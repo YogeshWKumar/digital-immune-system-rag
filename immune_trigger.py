@@ -526,7 +526,7 @@ def patch_app(reason: str) -> str:
     # ── Step 2: Query ChromaDB — replaces manual embed + cosine ───────────────
     candidates = retrieve_top_k_chroma(query, collection, k=collection.count())
 
-    # ── Step 4: Cross encoder reranking via HuggingFace API ───────────────────
+    # ── Step 3: Cross encoder reranking via HuggingFace API ───────────────────
     reranked = cross_encoder_rerank(query, candidates)
 
     print("\\n=== Cross Encoder scores for all chunks ===")
@@ -550,7 +550,7 @@ def patch_app(reason: str) -> str:
         print(f"  Source:\\n{c['source']}")
     print("=== End RAG Result ===\\n")
 
-    # ── Step 3, 4, 5: Fix each retrieved chunk independently ──────────────────
+    # ── Step 4: Fix each retrieved chunk independently ──────────────────
     fixed_source = source
     for c in top_2:
         # Re-extract the current source of this function from fixed_source
@@ -614,7 +614,7 @@ def patch_app(reason: str) -> str:
         )
 
 
-    # ── Step 6: Validate syntax ────────────────────────────────────────────────
+    # ── Step 5: Validate syntax ────────────────────────────────────────────────
     try:
         compile(fixed_source, "app.py", "exec")
     except SyntaxError as e:
