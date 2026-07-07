@@ -2,7 +2,8 @@ import os
 import json
 import base64
 import requests
-from e2b_code_interpreter import Sandbox
+#from e2b_code_interpreter import Sandbox
+from e2b import Sandbox
 
 OPENAI_KEY    = os.environ["OPENAI_API_KEY"]
 GH_TOKEN      = os.environ["GH_TOKEN"]
@@ -948,7 +949,7 @@ print(f"Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
 app_code = get_file_from_github("app.py")
 
 print("Spinning up e2b sandbox...")
-with Sandbox.create(allow_internet_access=True) as sandbox:
+with Sandbox.create() as sandbox:
 
     sandbox.commands.run(
         "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph chromadb numpy",
