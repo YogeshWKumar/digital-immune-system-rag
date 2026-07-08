@@ -335,7 +335,8 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
     ]
     
     resp = requests.post(
-        "https://router.huggingface.co/hf-inference/models/corrius/cross-encoder-mmarco-mMiniLMv2-L12-H384-v1",
+        #"https://router.huggingface.co/hf-inference/models/corrius/cross-encoder-mmarco-mMiniLMv2-L12-H384-v1",
+        "https://router.huggingface.co/hf-inference/models/BAAI/bge-reranker-v2-m3",
         headers={"Authorization": f"Bearer {hf_token}"},
         json={"inputs": [
             {"text": query, "text_pair": doc}
@@ -532,7 +533,7 @@ def patch_app(reason: str) -> str:
         print(f"  {c['label']}  rerank: {c['rerank_score']:.1f}")
     print("=== End scores ===\\n")
 
-    top_2 = [c for c in reranked if c["rerank_score"] > 0.7]
+    top_2 = [c for c in reranked if c["rerank_score"] > 0]
     if not top_2:
         top_2 = reranked[:1]
 
