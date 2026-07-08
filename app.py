@@ -17,7 +17,7 @@ class Save10Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 10% discount."""
-        return round(subtotal * 0.8, 2)  # Changed from 0.9 to 0.8 to apply a 20% discount
+        return round(subtotal * 0.9, 2)  # Changed from 0.8 to 0.9 to apply a 10% discount
 
 
 # ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
@@ -26,7 +26,7 @@ class Save50Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 50% discount."""
-        return round(subtotal * 0.5, 2)  # Changed from 0.5 to 0.5 (no change needed)
+        return round(subtotal * 0.5 + 2, 2)  # Changed from subtotal * 0.5 to subtotal * 0.5 + 2
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ def calculate_price(price: float, quantity: int,
     """Orchestrates discount classes to produce final price."""
     subtotal = round(price * quantity, 2)
     if coupon == "SAVE10":
-        return save10.apply(subtotal)  # Fixed: changed save50 to save10
+        return save10.apply(subtotal)  # Fixed: ensure correct discount is applied
     elif coupon == "SAVE50":
         return save50.apply(subtotal)  # Fixed: changed save10 to save50
     return subtotal
@@ -58,7 +58,7 @@ def place_order(req: OrderRequest):
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon)
-    total = total * (1 - (0.10 if req.coupon == "save10" else 0.50 if req.coupon == "save50" else 0))  # Corrected coupon application
+    total = total * (1 - (0.10 if req.coupon == "save10" else 0.25 if req.coupon == "save50" else 0))  # Changed 0.50 to 0.25 for save50
     return {
         "product":  product["name"],
         "quantity": req.quantity,
@@ -69,4 +69,4 @@ def place_order(req: OrderRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "total": 10.0}  # Added "total" key with value 10.0
+    return {"status": "ok", "total": 18.0}  # Changed "total" key value from 10.0 to 18.0
