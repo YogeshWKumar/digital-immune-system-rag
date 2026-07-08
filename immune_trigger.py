@@ -334,24 +334,27 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
         for c in candidates
     ]
     
-    resp = requests.post(
-        #"https://router.huggingface.co/hf-inference/models/corrius/cross-encoder-mmarco-mMiniLMv2-L12-H384-v1",
-        "https://router.huggingface.co/hf-inference/models/BAAI/bge-reranker-v2-m3",
-        headers={"Authorization": f"Bearer {hf_token}"},
-        json={"inputs": [
-            {"text": query, "text_pair": doc}
-            for doc in documents
-        ]},
-        timeout=30
-    )
-    
-    scores = resp.json()[0]
-    
-    # Attach scores to candidates
-    for i, c in enumerate(candidates):
-        c["rerank_score"] = float(scores[i]["score"])
-    
-    return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)
+    try:
+        resp = requests.post(
+            "https://router.huggingface.co/hf-inference/models/BAAI/bge-reranker-v2-m3",
+            headers={"Authorization": f"Bearer {hf_token}"},
+            json={"inputs": [
+                {"text": query, "text_pair": doc}
+                for doc in documents
+            ]},
+            timeout=60  # ← increased from 30
+        )
+        raw = resp.json()
+        scores = raw[0] if isinstance(raw[0], list) else raw
+        for i, c in enumerate(candidates):
+            c["rerank_score"] = float(scores[i]["score"])
+        return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)
+
+    except Exception as e:
+        print(f"Cross encoder failed — falling back to ChromaDB scores: {e}")
+        for c in candidates:
+            c["rerank_score"] = c.get("score", 0.0)
+        return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)
 
 
 def replace_function(source: str,
