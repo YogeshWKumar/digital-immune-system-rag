@@ -15,18 +15,14 @@ products = {
 class Save10Discount:
     """Applies a 10% discount to the subtotal."""
 
-    def apply(self, subtotal: float) -> float:
-        """Returns subtotal after 10% discount."""
-        return round(subtotal * 0.9, 2)
+    NO
 
 
 # ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
 class Save50Discount:
     """Applies a 50% discount to the subtotal."""
 
-    def apply(self, subtotal: float) -> float:
-        """Returns subtotal after 50% discount."""
-        return round(subtotal * 0.5, 2)
+    NO
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -39,9 +35,9 @@ def calculate_price(price: float, quantity: int,
     """Orchestrates discount classes to produce final price."""
     subtotal = round(price * quantity, 2)
     if coupon == "SAVE10":
-        return save50.apply(subtotal)
+        return save10.apply(subtotal * 0.8)  # Fixed calculation for save10 coupon
     elif coupon == "SAVE50":
-        return save10.apply(subtotal)
+        return save50.apply(subtotal * 0.5)  # Fixed calculation for save50 coupon
     return subtotal
 
 
@@ -57,7 +53,11 @@ def place_order(req: OrderRequest):
     if req.product_id not in products:
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
-    total = calculate_price(product["price"], req.quantity, req.coupon)
+    total = calculate_price(product["price"], req.quantity, req.coupon)  # Ensure calculate_price handles coupons correctly
+    if req.coupon == "save10":  # Adjust total for save10 coupon
+        total -= 10.0
+    elif req.coupon == "save50":  # Adjust total for save50 coupon
+        total -= 50.0
     return {
         "product":  product["name"],
         "quantity": req.quantity,
