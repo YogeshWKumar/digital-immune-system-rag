@@ -142,7 +142,7 @@ client = TestClient(app, raise_server_exceptions=False)
 app_code = open("/home/user/app.py").read()
 
 model = OpenAIServerModel(
-    model_id="gpt-4o-mini",
+    model_id="gpt-4o",
     api_base="https://openai.vocareum.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
     temperature=0.4
