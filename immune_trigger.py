@@ -538,7 +538,7 @@ def patch_app(reason: str) -> str:
     print("=== End scores ===\\n")
 
     failed_count = len(re.findall(r'^FAILED ', failure_log, re.MULTILINE))
-    k = max(1, failed_count)
+    k = max(2, failed_count+1)
 
     top_2 = [c for c in reranked if c["rerank_score"] > 0]
     if not top_2:
