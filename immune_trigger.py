@@ -142,7 +142,7 @@ client = TestClient(app, raise_server_exceptions=False)
 app_code = open("/home/user/app.py").read()
 
 model = OpenAIServerModel(
-    model_id="gpt-4o",
+    model_id="gpt-4o-mini",
     api_base="https://openai.vocareum.com/v1",
     api_key=os.environ["OPENAI_API_KEY"],
     temperature=0.4
@@ -578,10 +578,8 @@ def patch_app(reason: str) -> str:
             f"CI failure output:\\n{failure_log}\\n\\n"
             f"Reason: {reason}\\n\\n"
             "Does this exact method contain the bug described above?\\n"
-            "Answer YES only if you can point to one or more specific wrong lines in this method.\\n"
-            "Answer NO if the bug is likely in a different method.\\n\\n"
-            "- If NO: return the method EXACTLY as shown above, character for character, zero changes. Do NOT add any comments. Do NOT modify healthy functions to compensate for bugs elsewhere.\\n"
-            "- If YES: fix ONLY the incorrect lines. Do NOT add new lines, conditions, or variables. Do NOT replace function calls with inline calculations. Add a short inline comment explaining what changed ONLY on the lines you actually changed.\\n"
+            "- If it does NOT contain the bug: return the method EXACTLY as shown above, character for character, zero changes. Do NOT add any comments. Do NOT modify healthy functions to compensate for bugs elsewhere.\\n"
+            "- If it DOES contain the bug: fix ONLY the incorrect lines. Do NOT add new lines, conditions, or variables. Do NOT replace function calls with inline calculations. Add a short inline comment explaining what changed ONLY on the lines you actually changed.\\n"
             "Preserve ALL comments, blank lines, and formatting exactly as in the original. Do NOT reformat, clean up, or remove any comments. " 
             "Return ONLY the method — not the full file."
         )
@@ -592,7 +590,7 @@ def patch_app(reason: str) -> str:
                 "Return methods UNCHANGED unless they contain the exact bug described. "
                 "NEVER replace function calls with inline calculations. "
                 "NEVER add comments to unchanged lines. "
-                "NEVER add comments to lines you did not modify."
+                "NEVER add comments to lines you did NOT modify."
             )),
             ChatMessage(role="user", content=fix_prompt)
         ])
