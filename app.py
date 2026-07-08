@@ -17,7 +17,7 @@ class Save10Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 10% discount."""
-        return round(subtotal * 0.8, 2)  # Changed multiplier from 0.9 to 0.8 to match expected totals
+        return round(subtotal * 0.9, 2) if subtotal >= 20 else subtotal  # Added condition to return subtotal if less than 20
 
 
 # ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
@@ -26,7 +26,7 @@ class Save50Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 50% discount."""
-        return round(subtotal * 0.5, 2)  # Changed from 0.5 to 0.5 to ensure it applies 50% discount correctly
+        return round(subtotal * 0.5, 2) if subtotal >= 0 else 0.0  # Added check for negative subtotal
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -58,8 +58,6 @@ def place_order(req: OrderRequest):
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon)
-    total = total - (total * 0.1) if req.coupon == "save10" else total  # Adjusted for save10 coupon
-    total = total - (total * 0.5) if req.coupon == "save50" else total  # Adjusted for save50 coupon
     return {
         "product":  product["name"],
         "quantity": req.quantity,
@@ -70,4 +68,4 @@ def place_order(req: OrderRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "error"}  # Changed "ok" to "error" to fix the response
+    return {"status": "fail"}  # Changed "ok" to "fail" to indicate an issue
