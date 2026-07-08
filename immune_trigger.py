@@ -532,7 +532,7 @@ def patch_app(reason: str) -> str:
         print(f"  {c['label']}  rerank: {c['rerank_score']:.1f}")
     print("=== End scores ===\\n")
 
-    top_2 = [c for c in reranked if c["rerank_score"] > 0]
+    top_2 = [c for c in reranked if c["rerank_score"] > 0.7]
     if not top_2:
         top_2 = reranked[:1]
 
