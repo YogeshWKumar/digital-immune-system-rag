@@ -129,6 +129,7 @@ from langgraph.graph import StateGraph, END
 from smolagents import ToolCallingAgent, CodeAgent, OpenAIServerModel, tool
 from fastapi.testclient import TestClient
 import requests
+import re
 
 # ── Load app ──────────────────────────────────────────────────────────────────
 spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
