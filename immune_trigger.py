@@ -530,7 +530,7 @@ def patch_app(reason: str) -> str:
 
     print("\\n=== Cross Encoder scores for all chunks ===")
     for c in reranked:
-        print(f"  {c['label']}  rerank: {c['rerank_score']:.1f}")
+        print(f"  {c['label']}  rerank: {c['rerank_score']:.6f}")
     print("=== End scores ===\\n")
 
     top_2 = [c for c in reranked if c["rerank_score"] > 0]
