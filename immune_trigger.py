@@ -570,7 +570,7 @@ def patch_app(reason: str) -> str:
             and ch["class_name"] == (c["class_name"] or "")),
             c  # fallback to original if not found
         )
-        
+
         fix_prompt = (
             f"# Class:     {str(current_chunk['class_name'])}\\n"
             f"# Method:    {current_chunk['func_name']}\\n"
@@ -587,7 +587,16 @@ def patch_app(reason: str) -> str:
             "Return ONLY the method — not the full file."
         )
 
-        response   = model([ChatMessage(role="user", content=fix_prompt)])
+        response   = model([
+            ChatMessage(role="system", content=(
+                "You are a surgical code repair tool. "
+                "Return methods UNCHANGED unless they contain the exact bug described. "
+                "NEVER replace function calls with inline calculations. "
+                "NEVER add comments to unchanged lines."
+            )),
+            ChatMessage(role="user", content=fix_prompt)
+        ])
+        
         fixed_func = response.content.strip()
 
         # ── Debug print ───────────────────────────────────────────────────────────────
