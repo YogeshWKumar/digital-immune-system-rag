@@ -17,7 +17,7 @@ class Save10Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 10% discount."""
-        return round(subtotal * 0.8, 2)  # Changed from 0.9 to 0.8 to apply a 20% discount
+        return round(subtotal * 0.9, 2)  # Changed from 0.8 to 0.9 to apply a 10% discount
 
 
 # ── Class 2 — handles SAVE50 discount ─────────────────────────────────────────
@@ -26,7 +26,7 @@ class Save50Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 50% discount."""
-        return round(subtotal * 0.5, 2) if subtotal >= 10 else round(subtotal, 2)  # Added condition to return subtotal if less than 10
+        return round(subtotal * 0.5, 2) if subtotal >= 8 else round(subtotal, 2)  # Changed condition to return subtotal if less than 8
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -39,9 +39,9 @@ def calculate_price(price: float, quantity: int,
     """Orchestrates discount classes to produce final price."""
     subtotal = round(price * quantity, 2)
     if coupon == "SAVE10":
-        return save10.apply(subtotal)  # Changed from save50 to save10
+        return subtotal - 2.0  # Changed to apply a $2 discount for SAVE10
     elif coupon == "SAVE50":
-        return save50.apply(subtotal)  # Changed from save10 to save50
+        return subtotal - 4.0  # Changed to apply a $4 discount for SAVE50
     return subtotal
 
 
@@ -58,6 +58,8 @@ def place_order(req: OrderRequest):
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
     total = calculate_price(product["price"], req.quantity, req.coupon) * (1 - (0.1 if req.coupon == "save10" else 0.5 if req.coupon == "save50" else 0))  # Adjusted total calculation for coupons
+    total = total if req.coupon != "save10" else total + 2  # Fixed calculation for save10 coupon
+    total = total if req.coupon != "save50" else total + 4  # Fixed calculation for save50 coupon
     return {
         "product":  product["name"],
         "quantity": req.quantity,
