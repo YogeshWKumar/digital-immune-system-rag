@@ -580,10 +580,9 @@ def patch_app(reason: str) -> str:
             "Does this exact method contain the bug described above?\\n"
             "Answer YES only if you can point to one or more specific wrong lines in this method.\\n"
             "Answer NO if the bug is likely in a different method.\\n\\n"
-            "- If NO: return the method EXACTLY as shown above, character for character, zero changes. Do NOT modify healthy functions to compensate for bugs elsewhere.\\n"
-            "- If YES: fix ONLY the incorrect lines. Do NOT add new lines, conditions, or variables. Do NOT replace function calls with inline calculations.\\n"
+            "- If NO: return the method EXACTLY as shown above, character for character, zero changes. Do NOT add any comments. Do NOT modify healthy functions to compensate for bugs elsewhere.\\n"
+            "- If YES: fix ONLY the incorrect lines. Do NOT add new lines, conditions, or variables. Do NOT replace function calls with inline calculations. Add a short inline comment explaining what changed ONLY on the lines you actually changed.\\n"
             "Preserve ALL comments, blank lines, and formatting exactly as in the original. Do NOT reformat, clean up, or remove any comments. " 
-            "If you changed a line, add a short inline comment on that line only explaining what changed. "
             "Return ONLY the method — not the full file."
         )
 
@@ -592,11 +591,12 @@ def patch_app(reason: str) -> str:
                 "You are a surgical code repair tool. "
                 "Return methods UNCHANGED unless they contain the exact bug described. "
                 "NEVER replace function calls with inline calculations. "
-                "NEVER add comments to unchanged lines."
+                "NEVER add comments to unchanged lines. "
+                "NEVER add comments to lines you did not modify."
             )),
             ChatMessage(role="user", content=fix_prompt)
         ])
-        
+
         fixed_func = response.content.strip()
 
         # ── Debug print ───────────────────────────────────────────────────────────────
