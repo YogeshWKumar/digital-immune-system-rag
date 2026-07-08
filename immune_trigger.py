@@ -325,7 +325,7 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
     """Rerank candidates using HuggingFace hosted cross encoder."""
     hf_token = os.environ.get("HF_TOKEN", "")
     
-    # Build query-document pairs
+    # Build enriched documents
     documents = [
         "Function: " + c["label"] + "\\n"
         + "Class: " + str(c["class_name"]) + "\\n"
@@ -335,24 +335,22 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
     ]
     
     resp = requests.post(
-        "https://api-inference.huggingface.co/models/cross-encoder/ms-marco-MiniLM-L-6-v2",
+        "https://router.huggingface.co/hf-inference/models/corrius/cross-encoder-mmarco-mMiniLMv2-L12-H384-v1",
         headers={"Authorization": f"Bearer {hf_token}"},
-        json={
-            "inputs": {
-                "query": query,
-                "passages": documents
-            }
-        },
+        json={"inputs": [
+            {"text": query, "text_pair": doc}
+            for doc in documents
+        ]},
         timeout=30
     )
     
-    scores = resp.json()
+    scores = resp.json()[0]
     
     # Attach scores to candidates
     for i, c in enumerate(candidates):
         c["rerank_score"] = float(scores[i]["score"])
     
-    return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)    
+    return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)
 
 
 def replace_function(source: str,
