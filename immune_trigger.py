@@ -570,24 +570,21 @@ def patch_app(reason: str) -> str:
             and ch["class_name"] == (c["class_name"] or "")),
             c  # fallback to original if not found
         )
-
+        
         fix_prompt = (
-            f"Review this method and fix it only if it contains a bug.\\n\\n"
             f"# Class:     {str(current_chunk['class_name'])}\\n"
             f"# Method:    {current_chunk['func_name']}\\n"
             f"{current_chunk['source']}\\n\\n"
             f"CI failure output:\\n{failure_log}\\n\\n"
             f"Reason: {reason}\\n\\n"
-            "Fix ONLY this specific method. "
-            "CRITICAL: Fix ONLY by changing existing lines — never by adding new ones. "
-            "CRITICAL: If this method is correct, return it EXACTLY as shown above — unchanged. "
-            "CRITICAL: Do NOT modify healthy functions to compensate for bugs elsewhere. "
-            "CRITICAL: Do NOT add new if/else blocks, new variables, or new logic. "
-            "CRITICAL: Do NOT replace function calls with inline calculations. "
-            "CRITICAL: Preserve ALL comments, blank lines, and formatting exactly as in the original. "
-            "CRITICAL: Do NOT reformat, clean up, or remove any comments. "
+            "Does this exact method contain the bug described above?\\n"
+            "Answer YES only if you can point to one or more specific wrong lines in this method.\\n"
+            "Answer NO if the bug is likely in a different method.\\n\\n"
+            "- If NO: return the method EXACTLY as shown above, character for character, zero changes. Do NOT modify healthy functions to compensate for bugs elsewhere.\\n"
+            "- If YES: fix ONLY the incorrect lines. Do NOT add new lines, conditions, or variables. Do NOT replace function calls with inline calculations.\\n"
+            "Preserve ALL comments, blank lines, and formatting exactly as in the original. Do NOT reformat, clean up, or remove any comments. " 
             "If you changed a line, add a short inline comment on that line only explaining what changed. "
-            "Return ONLY the corrected method — not the full file."
+            "Return ONLY the method — not the full file."
         )
 
         response   = model([ChatMessage(role="user", content=fix_prompt)])
