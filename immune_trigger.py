@@ -533,9 +533,14 @@ def patch_app(reason: str) -> str:
         print(f"  {c['label']}  rerank: {c['rerank_score']:.6f}")
     print("=== End scores ===\\n")
 
+    failed_count = len(re.findall(r'^FAILED ', failure_log, re.MULTILINE))
+    k = max(1, failed_count)
+
     top_2 = [c for c in reranked if c["rerank_score"] > 0]
     if not top_2:
         top_2 = reranked[:1]
+    
+    top_2 = top_2[:k]
 
     # ── Add these prints to see what chunk was retrieved ──────────────────────────
     print("\\n=== RAG Retrieval Result ===")
