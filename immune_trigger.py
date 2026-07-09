@@ -558,6 +558,31 @@ def patch_app(reason: str) -> str:
         print(f"  Source:\\n{c['source']}")
     print("=== End RAG Result ===\\n")
 
+    
+    response_schema = {
+            "name": "code_repair",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "reasoning": {
+                        "type": "string",
+                        "description": "One sentence explaining if this method directly causes the failure"
+                    },
+                    "verdict": {
+                        "type": "string",
+                        "enum": ["BUGGY", "HEALTHY"]
+                    },
+                    "fixed_method": {
+                        "type": "string",
+                        "description": "The complete method — fixed if BUGGY, character for character identical if HEALTHY"
+                    }
+                },
+                "required": ["reasoning", "verdict", "fixed_method"],
+                "additionalProperties": False
+            }
+        }
+
     # ── Step 4: Fix each retrieved chunk independently ──────────────────
     fixed_source = source
     for c in top_2:
@@ -577,25 +602,49 @@ def patch_app(reason: str) -> str:
             f"{current_chunk['source']}\\n\\n"
             f"CI failure output:\\n{failure_log}\\n\\n"
             f"Reason: {reason}\\n\\n"
-            "Does this exact method contain the bug described above?\\n"
-            "- If it does NOT contain the bug: return the method EXACTLY as shown above, character for character, zero changes. Do NOT add any comments. Do NOT modify healthy functions to compensate for bugs elsewhere.\\n"
-            "- If it DOES contain the bug: fix ONLY the incorrect lines. Do NOT add new lines, conditions, or variables. Do NOT replace function calls with inline calculations. Add a short inline comment explaining what changed ONLY on the lines you actually changed.\\n"
-            "Preserve ALL comments, blank lines, and formatting exactly as in the original. Do NOT reformat, clean up, or remove any comments. " 
-            "Return ONLY the method — not the full file."
+            "Does this method directly cause the CI failure above?\\n"
+            "- If HEALTHY: fixed_method must be character for character identical to the method shown above. Zero changes. No comments added.\\n"
+            "- If BUGGY: fix only the incorrect lines in fixed_method. Do NOT add new lines, conditions, or variables. Do NOT replace function calls with inline calculations. Add a short inline comment ONLY on lines you actually changed.\\n"
+            "fixed_method must always contain the complete method."
         )
 
-        response   = model([
-            ChatMessage(role="system", content=(
-                "You are a surgical code repair tool. "
-                "Return methods UNCHANGED unless they contain the exact bug described. "
-                "NEVER replace function calls with inline calculations. "
-                "NEVER add comments to unchanged lines. "
-                "NEVER add comments to lines you did NOT modify."
-            )),
-            ChatMessage(role="user", content=fix_prompt)
-        ])
+        response   = model(
+            [
+                ChatMessage(role="system", content=(
+                    "You are a surgical code repair tool. "
+                    "Return methods UNCHANGED unless they contain the exact bug described. "
+                    "NEVER replace function calls with inline calculations. "
+                    "NEVER add comments to unchanged lines. "
+                    "NEVER add comments to lines you did NOT modify."
+                )),
+                ChatMessage(role="user", content=fix_prompt)
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": response_schema
+            }
+        )
 
-        fixed_func = response.content.strip()
+        try:
+            result = json.loads(response.content.strip())
+            verdict   = result["verdict"]
+            reasoning = result["reasoning"]
+            new_func  = result["fixed_method"]
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"  → JSON parse failed for {current_chunk['func_name']} — keeping original: {e}")
+            continue
+
+        print(f"  → {current_chunk['func_name']}: {verdict} — {reasoning}")
+
+        # ── HEALTHY — skip entirely, do not touch the source ──────────
+        if verdict == "HEALTHY":
+            print(f"  → Skipping {current_chunk['func_name']} — healthy")
+            continue
+
+        # ── BUGGY — apply fix ─────────────────────────────────────────
+        print(f"  → Fixing {current_chunk['func_name']}")
+
+        fixed_func = new_func.strip()
 
         # ── Debug print ───────────────────────────────────────────────────────────────
         print("new_func repr='" + repr(fixed_func[:200]) + "'")
