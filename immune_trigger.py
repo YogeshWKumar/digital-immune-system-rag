@@ -239,7 +239,7 @@ openai_client = OpenAIClient(
 def index_chunks(source_code: str, collection) -> None:
     chunks = chunk_by_class_and_function(source_code)
 
-    # ── Print all chunks so they appear in the Actions log ────────────────────
+    # ── Print all chunks ───────────────────────────────────────────────────────
     print("\\n=== All chunks generated ===")
     for i, c in enumerate(chunks):
         print("Chunk " + str(i+1) + ": " + c["label"])
@@ -254,38 +254,59 @@ def index_chunks(source_code: str, collection) -> None:
     print("Total chunks: " + str(len(chunks)))
     print("=== End chunks ===\\n")
 
-    # ── Build callee and caller lookups ───────────────────────────────────────
-    label_to_chunk = {c["label"]: c for c in chunks}
+    # ── Build lookups ──────────────────────────────────────────────────────────
+    label_to_chunk   = {c["label"]: c for c in chunks}
+    funcname_to_chunk = {c["func_name"]: c for c in chunks}
 
+    # ── Build caller lookup — match save50.apply → Save50Discount.apply ────────
     caller_lookup = {}
     for c in chunks:
-        for callee_label in c["calls"]:
-            if callee_label not in caller_lookup:
-                caller_lookup[callee_label] = []
-            caller_lookup[callee_label].append(c)
+        for callee_ref in c["calls"]:
+            method_name = callee_ref.split(".")[-1]
+            matched = label_to_chunk.get(callee_ref) or funcname_to_chunk.get(method_name)
+            if matched and matched["label"] != c["label"]:
+                if matched["label"] not in caller_lookup:
+                    caller_lookup[matched["label"]] = []
+                if c not in caller_lookup[matched["label"]]:
+                    caller_lookup[matched["label"]].append(c)
 
-    # ── Print call graph ──────────────────────────────────────────────────────
+    # ── Print call graph ───────────────────────────────────────────────────────
     print("\\n=== Call graph enrichment ===")
     for c in chunks:
-        callees = [l for l in c["calls"] if l in label_to_chunk]
+        callees = [
+            (label_to_chunk.get(r) or funcname_to_chunk.get(r.split(".")[-1]))
+            for r in c["calls"]
+        ]
+        callees = [ch["label"] for ch in callees if ch and ch["label"] != c["label"]]
         callers = [caller["label"] for caller in caller_lookup.get(c["label"], [])]
         print(f"  {c['label']}")
         print(f"    Callees (in codebase): {callees}")
         print(f"    Callers (in codebase): {callers}")
     print("=== End call graph ===\\n")
 
-    # ── Embed with callee + caller enrichment ─────────────────────────────────
+    # ── Embed with callee + caller enrichment ──────────────────────────────────
     embeddings = []
     for c in chunks:
+        callee_chunks = [
+            label_to_chunk.get(r) or funcname_to_chunk.get(r.split(".")[-1])
+            for r in c["calls"]
+        ]
+        callee_chunks = [ch for ch in callee_chunks if ch and ch["label"] != c["label"]]
+
+        caller_chunks = caller_lookup.get(c["label"], [])
+
         callee_text = "\\n".join([
-            f"# {callee_label}:\\n{label_to_chunk[callee_label]['source']}"
-            for callee_label in c["calls"]
-            if callee_label in label_to_chunk
+            f"# {ch['label']}:\\n{ch['source']}"
+            for ch in callee_chunks
         ])
         caller_text = "\\n".join([
-            f"# {caller['label']}:\\n{caller['source']}"
-            for caller in caller_lookup.get(c["label"], [])
+            f"# {ch['label']}:\\n{ch['source']}"
+            for ch in caller_chunks
         ])
+
+        callees_labels = [ch["label"] for ch in callee_chunks]
+        callers_labels = [ch["label"] for ch in caller_chunks]
+        print(f"  Embedding {c['label']} — callees: {callees_labels} callers: {callers_labels}")
 
         embed_input = (
             "Function: " + c["label"] + "\\n"
@@ -296,8 +317,6 @@ def index_chunks(source_code: str, collection) -> None:
             + ("Called by:\\n" + caller_text + "\\n\\n" if caller_text else "")
             + c["source"]
         )
-
-        print(f"  Embedding {c['label']} — callees: {[l for l in c['calls'] if l in label_to_chunk]} callers: {[caller['label'] for caller in caller_lookup.get(c['label'], [])]}")
 
         embedding = openai_client.embeddings.create(
             model="text-embedding-3-small",
@@ -316,16 +335,19 @@ def index_chunks(source_code: str, collection) -> None:
             "start_line": str(c["start_line"]),
             "end_line":   str(c["end_line"]),
             "calls":      ", ".join(c["calls"]),
-            "callees":    ", ".join([
-                l for l in c["calls"]
-                if l in label_to_chunk
-            ]),
-            "callers":    ", ".join([
-                caller["label"]
-                for caller in caller_lookup.get(c["label"], [])
-            ])
-        } for c in chunks],
-        ids=[c["label"] for c in chunks]
+            "callees":    ", ".join([ch["label"] for ch in callee_chunks]),
+            "callers":    ", ".join([ch["label"] for ch in caller_chunks])
+        } for c, callee_chunks, caller_chunks in zip(
+            chunks,
+            [
+                [ch for ch in [
+                    label_to_chunk.get(r) or funcname_to_chunk.get(r.split(".")[-1])
+                    for r in c["calls"]
+                ] if ch and ch["label"] != c["label"]]
+                for c in chunks
+            ],
+            [caller_lookup.get(c["label"], []) for c in chunks]
+        )]
     )
 
 # Stage 2 — Query ChromaDB instead of manual cosine similarity:
@@ -376,29 +398,41 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
     """Rerank candidates using HuggingFace hosted cross encoder."""
     hf_token = os.environ.get("HF_TOKEN", "")
 
-    # ── Build caller lookup from candidates ───────────────────────────────────
+    # ── Build lookups ──────────────────────────────────────────────────────────
+    label_to_candidate   = {c["label"]: c for c in candidates}
+    funcname_to_candidate = {c["func_name"]: c for c in candidates}
+
+    # ── Build caller lookup — match save50.apply → Save50Discount.apply ────────
     caller_lookup = {}
     for c in candidates:
-        for callee_label in str(c.get("calls", "")).split(", "):
-            callee_label = callee_label.strip()
-            if callee_label:
-                if callee_label not in caller_lookup:
-                    caller_lookup[callee_label] = []
-                caller_lookup[callee_label].append(c)
+        calls = c.get("calls", [])
+        if isinstance(calls, str):
+            calls = [r.strip() for r in calls.split(",") if r.strip()]
+        for callee_ref in calls:
+            method_name = callee_ref.split(".")[-1]
+            matched = label_to_candidate.get(callee_ref) or funcname_to_candidate.get(method_name)
+            if matched and matched["label"] != c["label"]:
+                if matched["label"] not in caller_lookup:
+                    caller_lookup[matched["label"]] = []
+                if c not in caller_lookup[matched["label"]]:
+                    caller_lookup[matched["label"]].append(c)
 
     # ── Build enriched documents ───────────────────────────────────────────────
     documents = []
     for c in candidates:
-        callee_text = "\\n".join([
-            f"# {other['label']}:\\n{other['source']}"
-            for other in candidates
-            if other["label"] in str(c.get("calls", ""))
-            and other["label"] != c["label"]
-        ])
-        caller_text = "\\n".join([
-            f"# {caller['label']}:\\n{caller['source']}"
-            for caller in caller_lookup.get(c["label"], [])
-        ])
+        calls = c.get("calls", [])
+        if isinstance(calls, str):
+            calls = [r.strip() for r in calls.split(",") if r.strip()]
+
+        callee_chunks = [
+            label_to_candidate.get(r) or funcname_to_candidate.get(r.split(".")[-1])
+            for r in calls
+        ]
+        callee_chunks = [ch for ch in callee_chunks if ch and ch["label"] != c["label"]]
+        caller_chunks = caller_lookup.get(c["label"], [])
+
+        callee_text = "\\n".join([f"# {ch['label']}:\\n{ch['source']}" for ch in callee_chunks])
+        caller_text = "\\n".join([f"# {ch['label']}:\\n{ch['source']}" for ch in caller_chunks])
 
         doc = (
             "Function: " + c["label"] + "\\n"
@@ -411,8 +445,8 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
         documents.append(doc)
 
         print(f"  Document for {c['label']}:")
-        print(f"    Callees included: {[other['label'] for other in candidates if other['label'] in str(c.get('calls', '')) and other['label'] != c['label']]}")
-        print(f"    Callers included: {[caller['label'] for caller in caller_lookup.get(c['label'], [])]}")
+        print(f"    Callees included: {[ch['label'] for ch in callee_chunks]}")
+        print(f"    Callers included: {[ch['label'] for ch in caller_chunks]}")
 
     try:
         resp = requests.post(
@@ -675,31 +709,39 @@ def patch_app(reason: str) -> str:
             c  # fallback to original if not found
         )
 
+        # ── Build lookups from current_chunks ─────────────────────────────────
+        label_to_current   = {ch["label"]: ch for ch in current_chunks}
+        funcname_to_current = {ch["func_name"]: ch for ch in current_chunks}
+
         current_chunk_calls = current_chunk.get("calls", [])
         if isinstance(current_chunk_calls, str):
-            current_chunk_calls = current_chunk_calls.split(", ")
+            current_chunk_calls = [r.strip() for r in current_chunk_calls.split(",") if r.strip()]
 
-        # ── Build callee and caller context for this chunk ────────────────────
+        # ── Build callee context — match save50.apply → Save50Discount.apply ──
+        callee_chunks = [
+            label_to_current.get(r) or funcname_to_current.get(r.split(".")[-1])
+            for r in current_chunk_calls
+        ]
+        callee_chunks = [ch for ch in callee_chunks if ch and ch["label"] != current_chunk["label"]]
+
         callee_context = "\\n".join([
-            f"# {other['label']}:\\n{other['source']}"
-            for other in top_2
-            if other["label"] in current_chunk_calls
-            and other["label"] != current_chunk.get("func_name", "")
+            f"# {ch['label']}:\\n{ch['source']}"
+            for ch in callee_chunks
         ])
 
+        # ── Build caller context — who calls current_chunk ─────────────────────
         caller_context = "\\n".join([
-            f"# {other['label']}:\\n{other['source']}"
-            for other in top_2
-            if current_chunk["label"] in (
-                other.get("calls", [])
-                if isinstance(other.get("calls", []), list)
-                else str(other.get("calls", "")).split(", ")
-            )
-            and other["label"] != current_chunk["label"]
+            f"# {ch['label']}:\\n{ch['source']}"
+            for ch in current_chunks
+            if current_chunk["label"] in [
+                (label_to_current.get(r) or funcname_to_current.get(r.split(".")[-1]) or {}).get("label", "")
+                for r in ch.get("calls", [])
+            ]
+            and ch["label"] != current_chunk["label"]
         ])
 
-        print(f"  Callee context for {current_chunk['func_name']}: {[other['label'] for other in top_2 if other['label'] in current_chunk_calls and other['label'] != current_chunk['func_name']]}")
-        print(f"  Caller context for {current_chunk['func_name']}: {[other['label'] for other in top_2 if current_chunk['label'] in (other.get('calls', []) if isinstance(other.get('calls', []), list) else str(other.get('calls', '')).split(', ')) and other['label'] != current_chunk['label']]}")
+        print(f"  Callee context for {current_chunk['func_name']}: {[ch['label'] for ch in callee_chunks]}")
+        print(f"  Caller context for {current_chunk['func_name']}: {[ch['label'] for ch in current_chunks if current_chunk['label'] in [(label_to_current.get(r) or funcname_to_current.get(r.split('.')[-1]) or {}).get('label', '') for r in ch.get('calls', [])] and ch['label'] != current_chunk['label']]}")
         
         fix_prompt = (
             f"# Class:     {str(current_chunk['class_name'])}\\n"
