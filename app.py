@@ -26,7 +26,7 @@ class Save50Discount:
 
     def apply(self, subtotal: float) -> float:
         """Returns subtotal after 50% discount."""
-        return round(subtotal * 0.5, 1)
+        return round(subtotal * 0.5, 2)
 
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ def place_order(req: OrderRequest):
     return {
         "product":  product["name"],
         "quantity": req.quantity,
-        "total":    total,
+        "total":    total*2,
         "status":   "confirmed"
     }
 
