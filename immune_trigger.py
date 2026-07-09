@@ -235,7 +235,24 @@ openai_client = OpenAIClient(
     api_key=os.environ["OPENAI_API_KEY"]
 )
 
-# Stage 1 — Index all chunks into ChromaDB:
+# ── Module-level helper — resolves instance method calls to chunk labels ──────
+def resolve_callee(callee_ref, label_to_chunk, funcname_to_chunk):
+    """Resolves save50.apply → Save50Discount.apply using class name matching."""
+    # Try exact label match first
+    if callee_ref in label_to_chunk:
+        return label_to_chunk[callee_ref]
+    # Try object.method — save50.apply → Save50Discount.apply
+    if "." in callee_ref:
+        obj, method = callee_ref.split(".", 1)
+        for label, chunk in label_to_chunk.items():
+            if (chunk["func_name"] == method
+                    and chunk["class_name"]
+                    and obj.lower() in chunk["class_name"].lower()):
+                return chunk
+    # Fallback — match by function name only
+    return funcname_to_chunk.get(callee_ref.split(".")[-1])
+
+
 def index_chunks(source_code: str, collection) -> None:
     chunks = chunk_by_class_and_function(source_code)
 
@@ -255,15 +272,14 @@ def index_chunks(source_code: str, collection) -> None:
     print("=== End chunks ===\\n")
 
     # ── Build lookups ──────────────────────────────────────────────────────────
-    label_to_chunk   = {c["label"]: c for c in chunks}
+    label_to_chunk    = {c["label"]: c for c in chunks}
     funcname_to_chunk = {c["func_name"]: c for c in chunks}
 
-    # ── Build caller lookup — match save50.apply → Save50Discount.apply ────────
+    # ── Build caller lookup ────────────────────────────────────────────────────
     caller_lookup = {}
     for c in chunks:
         for callee_ref in c["calls"]:
-            method_name = callee_ref.split(".")[-1]
-            matched = label_to_chunk.get(callee_ref) or funcname_to_chunk.get(method_name)
+            matched = resolve_callee(callee_ref, label_to_chunk, funcname_to_chunk)
             if matched and matched["label"] != c["label"]:
                 if matched["label"] not in caller_lookup:
                     caller_lookup[matched["label"]] = []
@@ -273,10 +289,7 @@ def index_chunks(source_code: str, collection) -> None:
     # ── Print call graph ───────────────────────────────────────────────────────
     print("\\n=== Call graph enrichment ===")
     for c in chunks:
-        callees = [
-            (label_to_chunk.get(r) or funcname_to_chunk.get(r.split(".")[-1]))
-            for r in c["calls"]
-        ]
+        callees = [resolve_callee(r, label_to_chunk, funcname_to_chunk) for r in c["calls"]]
         callees = [ch["label"] for ch in callees if ch and ch["label"] != c["label"]]
         callers = [caller["label"] for caller in caller_lookup.get(c["label"], [])]
         print(f"  {c['label']}")
@@ -286,27 +299,21 @@ def index_chunks(source_code: str, collection) -> None:
 
     # ── Embed with callee + caller enrichment ──────────────────────────────────
     embeddings = []
-    for c in chunks:
-        callee_chunks = [
-            label_to_chunk.get(r) or funcname_to_chunk.get(r.split(".")[-1])
-            for r in c["calls"]
-        ]
-        callee_chunks = [ch for ch in callee_chunks if ch and ch["label"] != c["label"]]
+    all_callee_chunks = []
+    all_caller_chunks = []
 
+    for c in chunks:
+        callee_chunks = [resolve_callee(r, label_to_chunk, funcname_to_chunk) for r in c["calls"]]
+        callee_chunks = [ch for ch in callee_chunks if ch and ch["label"] != c["label"]]
         caller_chunks = caller_lookup.get(c["label"], [])
 
-        callee_text = "\\n".join([
-            f"# {ch['label']}:\\n{ch['source']}"
-            for ch in callee_chunks
-        ])
-        caller_text = "\\n".join([
-            f"# {ch['label']}:\\n{ch['source']}"
-            for ch in caller_chunks
-        ])
+        all_callee_chunks.append(callee_chunks)
+        all_caller_chunks.append(caller_chunks)
 
-        callees_labels = [ch["label"] for ch in callee_chunks]
-        callers_labels = [ch["label"] for ch in caller_chunks]
-        print(f"  Embedding {c['label']} — callees: {callees_labels} callers: {callers_labels}")
+        callee_text = "\\n".join([f"# {ch['label']}:\\n{ch['source']}" for ch in callee_chunks])
+        caller_text = "\\n".join([f"# {ch['label']}:\\n{ch['source']}" for ch in caller_chunks])
+
+        print(f"  Embedding {c['label']} — callees: {[ch['label'] for ch in callee_chunks]} callers: {[ch['label'] for ch in caller_chunks]}")
 
         embed_input = (
             "Function: " + c["label"] + "\\n"
@@ -324,10 +331,10 @@ def index_chunks(source_code: str, collection) -> None:
         ).data[0].embedding
         embeddings.append(embedding)
 
-    collection.add(
-        documents=[c["source"] for c in chunks],
-        embeddings=embeddings,
-        metadatas=[{
+    # ── Build metadata separately — avoids broken zip in collection.add() ──────
+    metadatas = []
+    for c, callee_chunks, caller_chunks in zip(chunks, all_callee_chunks, all_caller_chunks):
+        metadatas.append({
             "label":      c["label"],
             "class_name": c["class_name"] or "",
             "func_name":  c["func_name"],
@@ -337,17 +344,13 @@ def index_chunks(source_code: str, collection) -> None:
             "calls":      ", ".join(c["calls"]),
             "callees":    ", ".join([ch["label"] for ch in callee_chunks]),
             "callers":    ", ".join([ch["label"] for ch in caller_chunks])
-        } for c, callee_chunks, caller_chunks in zip(
-            chunks,
-            [
-                [ch for ch in [
-                    label_to_chunk.get(r) or funcname_to_chunk.get(r.split(".")[-1])
-                    for r in c["calls"]
-                ] if ch and ch["label"] != c["label"]]
-                for c in chunks
-            ],
-            [caller_lookup.get(c["label"], []) for c in chunks]
-        )]
+        })
+
+    collection.add(
+        documents=[c["source"] for c in chunks],
+        embeddings=embeddings,
+        metadatas=metadatas,
+        ids=[c["label"] for c in chunks]
     )
 
 # Stage 2 — Query ChromaDB instead of manual cosine similarity:
@@ -399,18 +402,17 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
     hf_token = os.environ.get("HF_TOKEN", "")
 
     # ── Build lookups ──────────────────────────────────────────────────────────
-    label_to_candidate   = {c["label"]: c for c in candidates}
+    label_to_candidate    = {c["label"]: c for c in candidates}
     funcname_to_candidate = {c["func_name"]: c for c in candidates}
 
-    # ── Build caller lookup — match save50.apply → Save50Discount.apply ────────
+    # ── Build caller lookup ────────────────────────────────────────────────────
     caller_lookup = {}
     for c in candidates:
         calls = c.get("calls", [])
         if isinstance(calls, str):
             calls = [r.strip() for r in calls.split(",") if r.strip()]
         for callee_ref in calls:
-            method_name = callee_ref.split(".")[-1]
-            matched = label_to_candidate.get(callee_ref) or funcname_to_candidate.get(method_name)
+            matched = resolve_callee(callee_ref, label_to_candidate, funcname_to_candidate)
             if matched and matched["label"] != c["label"]:
                 if matched["label"] not in caller_lookup:
                     caller_lookup[matched["label"]] = []
@@ -425,7 +427,7 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
             calls = [r.strip() for r in calls.split(",") if r.strip()]
 
         callee_chunks = [
-            label_to_candidate.get(r) or funcname_to_candidate.get(r.split(".")[-1])
+            resolve_callee(r, label_to_candidate, funcname_to_candidate)
             for r in calls
         ]
         callee_chunks = [ch for ch in callee_chunks if ch and ch["label"] != c["label"]]
@@ -699,27 +701,25 @@ def patch_app(reason: str) -> str:
     # ── Step 4: Fix each retrieved chunk independently ──────────────────
     fixed_source = source
     for c in top_2:
-        # Re-extract the current source of this function from fixed_source
-        # so the LLM sees what the function looks like NOW not at index time
         current_chunks = chunk_by_class_and_function(fixed_source)
         current_chunk = next(
             (ch for ch in current_chunks
             if ch["func_name"] == c["func_name"]
             and ch["class_name"] == (c["class_name"] or "")),
-            c  # fallback to original if not found
+            c
         )
 
         # ── Build lookups from current_chunks ─────────────────────────────────
-        label_to_current   = {ch["label"]: ch for ch in current_chunks}
+        label_to_current    = {ch["label"]: ch for ch in current_chunks}
         funcname_to_current = {ch["func_name"]: ch for ch in current_chunks}
 
         current_chunk_calls = current_chunk.get("calls", [])
         if isinstance(current_chunk_calls, str):
             current_chunk_calls = [r.strip() for r in current_chunk_calls.split(",") if r.strip()]
 
-        # ── Build callee context — match save50.apply → Save50Discount.apply ──
+        # ── Build callee context ───────────────────────────────────────────────
         callee_chunks = [
-            label_to_current.get(r) or funcname_to_current.get(r.split(".")[-1])
+            resolve_callee(r, label_to_current, funcname_to_current)
             for r in current_chunk_calls
         ]
         callee_chunks = [ch for ch in callee_chunks if ch and ch["label"] != current_chunk["label"]]
@@ -729,20 +729,24 @@ def patch_app(reason: str) -> str:
             for ch in callee_chunks
         ])
 
-        # ── Build caller context — who calls current_chunk ─────────────────────
-        caller_context = "\\n".join([
-            f"# {ch['label']}:\\n{ch['source']}"
-            for ch in current_chunks
+        # ── Build caller context ───────────────────────────────────────────────
+        caller_chunks = [
+            ch for ch in current_chunks
             if current_chunk["label"] in [
-                (label_to_current.get(r) or funcname_to_current.get(r.split(".")[-1]) or {}).get("label", "")
+                (resolve_callee(r, label_to_current, funcname_to_current) or {}).get("label", "")
                 for r in ch.get("calls", [])
             ]
             and ch["label"] != current_chunk["label"]
+        ]
+
+        caller_context = "\\n".join([
+            f"# {ch['label']}:\\n{ch['source']}"
+            for ch in caller_chunks
         ])
 
         print(f"  Callee context for {current_chunk['func_name']}: {[ch['label'] for ch in callee_chunks]}")
-        print(f"  Caller context for {current_chunk['func_name']}: {[ch['label'] for ch in current_chunks if current_chunk['label'] in [(label_to_current.get(r) or funcname_to_current.get(r.split('.')[-1]) or {}).get('label', '') for r in ch.get('calls', [])] and ch['label'] != current_chunk['label']]}")
-        
+        print(f"  Caller context for {current_chunk['func_name']}: {[ch['label'] for ch in caller_chunks]}")
+
         fix_prompt = (
             f"# Class:     {str(current_chunk['class_name'])}\\n"
             f"# Method:    {current_chunk['func_name']}\\n"
@@ -758,7 +762,7 @@ def patch_app(reason: str) -> str:
             "fixed_method must always contain the complete method."
         )
 
-        response   = model(
+        response = model(
             [
                 ChatMessage(role="system", content=(
                     "You are a surgical code repair tool. "
@@ -791,22 +795,16 @@ def patch_app(reason: str) -> str:
 
         print(f"  → {current_chunk['func_name']}: {verdict} — {reasoning}")
 
-        # ── HEALTHY — skip entirely, do not touch the source ──────────
         if verdict == "HEALTHY":
             print(f"  → Skipping {current_chunk['func_name']} — healthy")
             continue
 
-        # ── BUGGY — apply fix ─────────────────────────────────────────
         print(f"  → Fixing {current_chunk['func_name']}")
 
-        # Normalize indentation — JSON encoding can add/remove leading spaces
         new_func = textwrap.dedent(new_func)
-
         fixed_func = new_func.strip()
 
-        # ── Debug print ───────────────────────────────────────────────────────────────
         print("new_func repr='" + repr(fixed_func) + "'")
-        # ─────────────────────────────────────────────────────────────────────────────
 
         if fixed_func.startswith("```"):
             fixed_func = "\\n".join(
@@ -815,7 +813,6 @@ def patch_app(reason: str) -> str:
             ).strip("\\n")
         print("After fence strip: " + repr(fixed_func[:100]))
 
-        # Strip prompt headers the LLM sometimes echoes back
         fixed_func = "\\n".join(
             line for line in fixed_func.split("\\n")
             if not line.strip().startswith("# Class:")
@@ -831,7 +828,6 @@ def patch_app(reason: str) -> str:
             fixed_func,
             class_name=c["class_name"]
         )
-
 
     # ── Step 5: Validate syntax ────────────────────────────────────────────────
     try:
