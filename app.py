@@ -61,7 +61,7 @@ def place_order(req: OrderRequest):
     return {
         "product":  product["name"],
         "quantity": req.quantity,
-        "total":    total*2,
+        "total":    total,
         "status":   "confirmed"
     }
 
