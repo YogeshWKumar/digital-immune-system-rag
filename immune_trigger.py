@@ -740,7 +740,7 @@ def patch_app(reason: str) -> str:
         ]
 
         caller_context = "\\n".join([
-            f"# {ch['label']}:\\n{ch['source']}"
+            f"# Called by: {ch['label']}" # ← label only, no source, f"# {ch['label']}:\\n{ch['source']}"
             for ch in caller_chunks
         ])
 
@@ -811,7 +811,7 @@ def patch_app(reason: str) -> str:
                 line for line in fixed_func.split("\\n")
                 if not line.startswith("```")
             ).strip("\\n")
-        print("After fence strip: " + repr(fixed_func[:100]))
+        print("After fence strip: " + repr(fixed_func))
 
         fixed_func = "\\n".join(
             line for line in fixed_func.split("\\n")
