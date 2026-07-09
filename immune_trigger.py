@@ -130,6 +130,7 @@ from smolagents import ToolCallingAgent, CodeAgent, OpenAIServerModel, tool
 from fastapi.testclient import TestClient
 import requests
 import re
+import textwrap
 
 # ── Load app ──────────────────────────────────────────────────────────────────
 spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
@@ -246,27 +247,63 @@ def index_chunks(source_code: str, collection) -> None:
         print("  Method:     " + c["func_name"])
         print("  Lines:      " + str(c["start_line"]) + "-" + str(c["end_line"]))
         print("  Signature:  " + c["func_sig"])
-        print("  Calls:      " + ", ".join(c["calls"]))  # ← print calls
+        print("  Calls:      " + ", ".join(c["calls"]))
         print("  Source:")
         print(c["source"])
         print("")
     print("Total chunks: " + str(len(chunks)))
     print("=== End chunks ===\\n")
 
-    # Embed manually using OpenAI
-    embeddings = [
-        openai_client.embeddings.create(
+    # ── Build callee and caller lookups ───────────────────────────────────────
+    label_to_chunk = {c["label"]: c for c in chunks}
+
+    caller_lookup = {}
+    for c in chunks:
+        for callee_label in c["calls"]:
+            if callee_label not in caller_lookup:
+                caller_lookup[callee_label] = []
+            caller_lookup[callee_label].append(c)
+
+    # ── Print call graph ──────────────────────────────────────────────────────
+    print("\\n=== Call graph enrichment ===")
+    for c in chunks:
+        callees = [l for l in c["calls"] if l in label_to_chunk]
+        callers = [caller["label"] for caller in caller_lookup.get(c["label"], [])]
+        print(f"  {c['label']}")
+        print(f"    Callees (in codebase): {callees}")
+        print(f"    Callers (in codebase): {callers}")
+    print("=== End call graph ===\\n")
+
+    # ── Embed with callee + caller enrichment ─────────────────────────────────
+    embeddings = []
+    for c in chunks:
+        callee_text = "\\n".join([
+            f"# {callee_label}:\\n{label_to_chunk[callee_label]['source']}"
+            for callee_label in c["calls"]
+            if callee_label in label_to_chunk
+        ])
+        caller_text = "\\n".join([
+            f"# {caller['label']}:\\n{caller['source']}"
+            for caller in caller_lookup.get(c["label"], [])
+        ])
+
+        embed_input = (
+            "Function: " + c["label"] + "\\n"
+            + "Signature: " + c["func_sig"] + "\\n"
+            + "Class: " + str(c["class_name"]) + "\\n"
+            + "Calls: " + ", ".join(c["calls"]) + "\\n"
+            + ("Callee source:\\n" + callee_text + "\\n\\n" if callee_text else "")
+            + ("Called by:\\n" + caller_text + "\\n\\n" if caller_text else "")
+            + c["source"]
+        )
+
+        print(f"  Embedding {c['label']} — callees: {[l for l in c['calls'] if l in label_to_chunk]} callers: {[caller['label'] for caller in caller_lookup.get(c['label'], [])]}")
+
+        embedding = openai_client.embeddings.create(
             model="text-embedding-3-small",
-            input=(
-                "Function: " + c["label"] + "\\n"
-                + "Signature: " + c["func_sig"] + "\\n"
-                + "Class: " + str(c["class_name"]) + "\\n"
-                + "Calls: " + ", ".join(c["calls"]) + "\\n"
-                + c["source"]
-            )
+            input=embed_input
         ).data[0].embedding
-        for c in chunks
-    ]
+        embeddings.append(embedding)
 
     collection.add(
         documents=[c["source"] for c in chunks],
@@ -278,7 +315,15 @@ def index_chunks(source_code: str, collection) -> None:
             "func_sig":   c["func_sig"],
             "start_line": str(c["start_line"]),
             "end_line":   str(c["end_line"]),
-            "calls":      ", ".join(c["calls"])
+            "calls":      ", ".join(c["calls"]),
+            "callees":    ", ".join([
+                l for l in c["calls"]
+                if l in label_to_chunk
+            ]),
+            "callers":    ", ".join([
+                caller["label"]
+                for caller in caller_lookup.get(c["label"], [])
+            ])
         } for c in chunks],
         ids=[c["label"] for c in chunks]
     )
@@ -311,30 +356,64 @@ def retrieve_top_k_chroma(query: str, collection, k: int = 3) -> list[dict]:
             "func_sig":   meta["func_sig"],
             "start_line": int(meta["start_line"]),
             "end_line":   int(meta["end_line"]),
-            "score":      1 - dist  # chroma returns distance, convert to similarity
+            "calls":      meta.get("calls", "").split(", ") if meta.get("calls") else [],  # ← restore as list
+            "callees":    meta.get("callees", "").split(", ") if meta.get("callees") else [],  # ← new
+            "callers":    meta.get("callers", "").split(", ") if meta.get("callers") else [],  # ← new
+            "score":      1 - dist
         })
 
     print("\\n=== ChromaDB scores for all chunks ===")
     for i, c in enumerate(chunks):
         print("  " + str(i+1) + ". " + c["label"]
-              + "  score: " + str(round(c["score"], 4)))
+              + "  score: " + str(round(c["score"], 4))
+              + "  callees: " + str(c["callees"])
+              + "  callers: " + str(c["callers"]))
     print("=== End scores ===\\n")
 
-    return chunks[:k]
+    return chunks
 
 def cross_encoder_rerank(query: str, candidates: list) -> list:
     """Rerank candidates using HuggingFace hosted cross encoder."""
     hf_token = os.environ.get("HF_TOKEN", "")
-    
-    # Build enriched documents
-    documents = [
-        "Function: " + c["label"] + "\\n"
-        + "Class: " + str(c["class_name"]) + "\\n"
-        + "Calls: " + str(c.get("calls", "")) + "\\n"
-        + c["source"]
-        for c in candidates
-    ]
-    
+
+    # ── Build caller lookup from candidates ───────────────────────────────────
+    caller_lookup = {}
+    for c in candidates:
+        for callee_label in str(c.get("calls", "")).split(", "):
+            callee_label = callee_label.strip()
+            if callee_label:
+                if callee_label not in caller_lookup:
+                    caller_lookup[callee_label] = []
+                caller_lookup[callee_label].append(c)
+
+    # ── Build enriched documents ───────────────────────────────────────────────
+    documents = []
+    for c in candidates:
+        callee_text = "\\n".join([
+            f"# {other['label']}:\\n{other['source']}"
+            for other in candidates
+            if other["label"] in str(c.get("calls", ""))
+            and other["label"] != c["label"]
+        ])
+        caller_text = "\\n".join([
+            f"# {caller['label']}:\\n{caller['source']}"
+            for caller in caller_lookup.get(c["label"], [])
+        ])
+
+        doc = (
+            "Function: " + c["label"] + "\\n"
+            + "Class: " + str(c["class_name"]) + "\\n"
+            + "Calls: " + str(c.get("calls", "")) + "\\n"
+            + ("Callee source:\\n" + callee_text + "\\n\\n" if callee_text else "")
+            + ("Called by:\\n" + caller_text + "\\n\\n" if caller_text else "")
+            + c["source"]
+        )
+        documents.append(doc)
+
+        print(f"  Document for {c['label']}:")
+        print(f"    Callees included: {[other['label'] for other in candidates if other['label'] in str(c.get('calls', '')) and other['label'] != c['label']]}")
+        print(f"    Callers included: {[caller['label'] for caller in caller_lookup.get(c['label'], [])]}")
+
     try:
         resp = requests.post(
             "https://router.huggingface.co/hf-inference/models/BAAI/bge-reranker-v2-m3",
@@ -343,7 +422,7 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
                 {"text": query, "text_pair": doc}
                 for doc in documents
             ]},
-            timeout=60  # ← increased from 30
+            timeout=60
         )
         raw = resp.json()
         scores = raw[0] if isinstance(raw[0], list) else raw
@@ -357,7 +436,7 @@ def cross_encoder_rerank(query: str, candidates: list) -> list:
             c["rerank_score"] = c.get("score", 0.0)
         return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)
 
-
+        
 def replace_function(source: str,
                      func_name: str,
                      new_func: str,
@@ -596,15 +675,44 @@ def patch_app(reason: str) -> str:
             c  # fallback to original if not found
         )
 
+        current_chunk_calls = current_chunk.get("calls", [])
+        if isinstance(current_chunk_calls, str):
+            current_chunk_calls = current_chunk_calls.split(", ")
+
+        # ── Build callee and caller context for this chunk ────────────────────
+        callee_context = "\\n".join([
+            f"# {other['label']}:\\n{other['source']}"
+            for other in top_2
+            if other["label"] in current_chunk_calls
+            and other["label"] != current_chunk.get("func_name", "")
+        ])
+
+        caller_context = "\\n".join([
+            f"# {other['label']}:\\n{other['source']}"
+            for other in top_2
+            if current_chunk["label"] in (
+                other.get("calls", [])
+                if isinstance(other.get("calls", []), list)
+                else str(other.get("calls", "")).split(", ")
+            )
+            and other["label"] != current_chunk["label"]
+        ])
+
+        print(f"  Callee context for {current_chunk['func_name']}: {[other['label'] for other in top_2 if other['label'] in current_chunk_calls and other['label'] != current_chunk['func_name']]}")
+        print(f"  Caller context for {current_chunk['func_name']}: {[other['label'] for other in top_2 if current_chunk['label'] in (other.get('calls', []) if isinstance(other.get('calls', []), list) else str(other.get('calls', '')).split(', ')) and other['label'] != current_chunk['label']]}")
+        
         fix_prompt = (
             f"# Class:     {str(current_chunk['class_name'])}\\n"
             f"# Method:    {current_chunk['func_name']}\\n"
             f"{current_chunk['source']}\\n\\n"
-            f"CI failure output:\\n{failure_log}\\n\\n"
+            + (f"Methods this function calls:\\n{callee_context}\\n\\n" if callee_context else "")
+            + (f"Methods that call this function:\\n{caller_context}\\n\\n" if caller_context else "")
+            + f"CI failure output:\\n{failure_log}\\n\\n"
             f"Reason: {reason}\\n\\n"
             "Does this method directly cause the CI failure above?\\n"
+            "Consider: could this method alone produce the wrong value, or does the bug lie in who calls it?\\n"
             "- If HEALTHY: fixed_method must be character for character identical to the method shown above. Zero changes. No comments added.\\n"
-            "- If BUGGY: fix only the incorrect lines in fixed_method. Do NOT add new lines, conditions, or variables. Do NOT replace function calls with inline calculations. Add a short inline comment ONLY on lines you actually changed.\\n"
+            "- If BUGGY: fix only the incorrect lines. Do NOT add new lines, conditions, or variables. Do NOT replace function calls with inline calculations.\\n"
             "fixed_method must always contain the complete method."
         )
 
@@ -612,10 +720,15 @@ def patch_app(reason: str) -> str:
             [
                 ChatMessage(role="system", content=(
                     "You are a surgical code repair tool. "
-                    "Return methods UNCHANGED unless they contain the exact bug described. "
+                    "You will be given a method, its callee source (methods it calls), "
+                    "its caller source (methods that call it), and a CI failure log. "
+                    "Use the full call graph context to reason about whether THIS specific method contains the bug. "
+                    "A method is HEALTHY if the bug lies in a different method — even if it is involved in the failing call chain. "
+                    "A method is BUGGY only if YOU can point to a specific wrong line in THIS method. "
                     "NEVER replace function calls with inline calculations. "
                     "NEVER add comments to unchanged lines. "
-                    "NEVER add comments to lines you did NOT modify."
+                    "NEVER add comments to lines you did NOT modify. "
+                    "Return methods UNCHANGED unless they are BUGGY."
                 )),
                 ChatMessage(role="user", content=fix_prompt)
             ],
@@ -644,10 +757,13 @@ def patch_app(reason: str) -> str:
         # ── BUGGY — apply fix ─────────────────────────────────────────
         print(f"  → Fixing {current_chunk['func_name']}")
 
+        # Normalize indentation — JSON encoding can add/remove leading spaces
+        new_func = textwrap.dedent(new_func)
+
         fixed_func = new_func.strip()
 
         # ── Debug print ───────────────────────────────────────────────────────────────
-        print("new_func repr='" + repr(fixed_func[:200]) + "'")
+        print("new_func repr='" + repr(fixed_func) + "'")
         # ─────────────────────────────────────────────────────────────────────────────
 
         if fixed_func.startswith("```"):
