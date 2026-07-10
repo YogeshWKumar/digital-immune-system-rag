@@ -786,6 +786,7 @@ def patch_app(reason: str) -> str:
 
         try:
             result = json.loads(response.content.strip())
+            print("Response JSON: ", result)
             verdict   = result["verdict"]
             reasoning = result["reasoning"]
             new_func  = result["fixed_method"]
